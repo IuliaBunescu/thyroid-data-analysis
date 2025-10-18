@@ -20,6 +20,9 @@ st.set_page_config(
 # Title
 st.title("🏥 Thyroid Data Analysis Dashboard")
 
+# Medical disclaimer at the top
+st.info("⚕️ **Medical Disclaimer:** This is a demonstration dashboard for educational purposes only. Please consult with a healthcare professional for actual medical advice and diagnosis.")
+
 # Sidebar - User Inputs
 st.sidebar.header("User Inputs")
 
@@ -39,6 +42,7 @@ show_reference_range = st.sidebar.checkbox("Show Reference Range", value=True)
 data_points = st.sidebar.slider("Number of Sample Data Points", 10, 100, 50)
 
 # Generate sample data based on inputs
+# Using seed 42 for reproducibility of demo data
 np.random.seed(42)
 sample_data = pd.DataFrame({
     'Patient_ID': range(1, data_points + 1),
@@ -118,21 +122,30 @@ with tab2:
         st.plotly_chart(fig2, use_container_width=True)
         
         st.subheader("Thyroid Hormone Levels")
+        # Scale T3 and FT4 for better visualization comparison across different units
+        # T3 is divided by 10 (ng/dL) and FT4 is multiplied by 5 (ng/dL) to bring values to comparable scale
         avg_levels = pd.DataFrame({
             'Hormone': ['TSH', 'T3', 'T4', 'FT4'],
             'Average': [
                 sample_data['TSH'].mean(),
-                sample_data['T3'].mean() / 10,  # Scale for visualization
+                sample_data['T3'].mean() / 10,  # Scaled: ng/dL ÷ 10
                 sample_data['T4'].mean(),
-                sample_data['FT4'].mean() * 5   # Scale for visualization
+                sample_data['FT4'].mean() * 5   # Scaled: ng/dL × 5
             ]
         })
         fig4 = px.bar(
             avg_levels,
             x='Hormone',
             y='Average',
-            title='Average Hormone Levels (Scaled)',
+            title='Average Hormone Levels (Scaled for Comparison)',
             labels={'Average': 'Average Level (Scaled)'}
+        )
+        fig4.add_annotation(
+            text="Note: T3 and FT4 values are scaled for visualization purposes",
+            xref="paper", yref="paper",
+            x=0.5, y=-0.15,
+            showarrow=False,
+            font=dict(size=10)
         )
         st.plotly_chart(fig4, use_container_width=True)
 
@@ -200,8 +213,6 @@ with tab3:
             st.warning(issue)
     else:
         st.success("✅ All thyroid measurements are within normal ranges")
-    
-    st.info("**Note:** This is a demo dashboard. Please consult with a healthcare professional for actual medical advice.")
 
 # Footer
 st.sidebar.markdown("---")
