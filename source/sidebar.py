@@ -11,8 +11,10 @@ def sidebar_setup():
 
     # # Sample input fields for thyroid data analysis
     # st.sidebar.subheader("Patient Information")
-    st.session_state.age = st.sidebar.slider("Age", 1, 100, 35)
-    st.session_state.gender = st.sidebar.selectbox("Gender", ["Male", "Female"])
+    st.session_state.age = st.sidebar.slider("Age", 1, 100, 35, disabled=True)
+    st.session_state.gender = st.sidebar.selectbox(
+        "Gender", ["Male", "Female"], disabled=True
+    )
 
     st.sidebar.subheader("Thyroid Measurements")
     st.session_state.tsh = st.sidebar.number_input(

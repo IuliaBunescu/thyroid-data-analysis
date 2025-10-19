@@ -9,4 +9,12 @@ def general_eda_structure(df: pd.DataFrame):
     Inputs:
     - df: DataFrame containing thyroid data
     """
-    st.header("EDA")
+    st.header("Multivariate Analysis")
+
+    st.markdown("---")
+
+    st.header("Correlation Analysis")
+
+    st.markdown("---")
+
+    st.header("Target Exploration")

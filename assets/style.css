@@ -85,3 +85,8 @@
     border-left: 4px solid #E63946;
     color: #5A1E1E;
 }
+
+.stMetric {
+    background: #F4A1A8;
+    border: 1px solid rgba(0, 0, 0, 0.0);
+}

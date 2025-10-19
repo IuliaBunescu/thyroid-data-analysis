@@ -1,11 +1,7 @@
-"""
-Thyroid Data Analysis Dashboard
-A Streamlit dashboard with sidebar inputs and three main tabs
-"""
-
 import pathlib
 
 import pandas as pd
+import source.config as config
 import source.sidebar as sb
 import source.tabs.eda as eda
 import source.tabs.ida as ida
@@ -36,13 +32,15 @@ st.info(
 
 sb.sidebar_setup()
 
-data = pd.read_csv("data/thyroid_data.csv")
+data = pd.read_csv("data/thyroid_data.csv", index_col="patient_id")
+lab_references = pd.read_csv("data/lab_reference_intervals.csv")
+condition_codes = pd.read_csv("data/condition_codes.csv")
 
 # Create tabs
 tab1, tab2, tab3 = st.tabs(["IDA", "EDA", "ReadMe"])
 
 with tab1:
-    ida.general_ida_structure(data)
+    ida.general_ida_structure(data, lab_references, condition_codes)
 with tab2:
     eda.general_eda_structure(data)
 with tab3:
