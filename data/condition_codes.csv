@@ -1,0 +1,22 @@
+Letter,Diagnosis,Category
+A,hyperthyroid,Hyperthyroid
+B,T3 toxic,Hyperthyroid
+C,toxic goitre,Hyperthyroid
+D,secondary toxic,Hyperthyroid
+E,hypothyroid,Hypothyroid
+F,primary hypothyroid,Hypothyroid
+G,compensated hypothyroid,Hypothyroid
+H,secondary hypothyroid,Hypothyroid
+I,increased binding protein,Binding Protein
+J,decreased binding protein,Binding Protein
+K,concurrent non-thyroidal illness,General Health
+L,consistent with replacement therapy,Replacement Therapy
+M,underreplaced,Replacement Therapy
+N,overreplaced,Replacement Therapy
+O,antithyroid drugs,Antithyroid Treatment
+P,I131 treatment,Antithyroid Treatment
+Q,surgery,Antithyroid Treatment
+R,discordant assay results,Miscellaneous
+S,elevated TBG,Miscellaneous
+T,elevated thyroid hormones,Miscellaneous
+-,no condition,No Condition

@@ -1,0 +1,92 @@
+/* ===== TABS ===== */
+.stTabs [data-baseweb="tab"] {
+    background: #F8C6CC;  /* soft pink tab background */
+    border: 1px solid #F4A1A8;
+    border-radius: 0.5rem;
+    font-size: 24px;
+    width: 100%;
+    color: #5A1E1E;  /* warm dark text */
+    transition: all 0.2s ease-in-out;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    background: #FFD6DA;  /* lighter pink hover */
+    color: #5A1E1E;
+}
+
+.stTabs [aria-selected="true"] {
+    background: #E63946 !important;  /* primary red-pink for active tab */
+    color: #FFF !important;
+}
+
+.stTabs [data-baseweb="tab"] p {
+    font-size: 1rem;
+}
+
+/* ===== ALERTS ===== */
+.stAlertContainer {
+    padding: 0;
+}
+
+/* SUCCESS – soft rose-peach (fits warm palette) */
+.stAlertContainer [data-testid="stAlertContentSuccess"] {
+    background-color: rgba(255, 200, 210, 0.6) !important;  /* gentle pink tint */
+    border-left: 6px solid #E63946;  /* red accent border */
+    padding: 1rem;
+    border-radius: 0.5rem;
+    color: #5A1E1E;
+}
+.stSidebar .stAlertContainer [data-testid="stAlertContentSuccess"] {
+    background-color: rgba(255, 210, 220, 0.5) !important;  /* soft rose-peach */
+    border-left: 4px solid #E63946;  /* primary red accent */
+    color: #5A1E1E;
+}
+
+/* INFO – light blush-lavender tone (still readable, fits pink theme) */
+.stAlertContainer [data-testid="stAlertContentInfo"] {
+    background-color: rgba(255, 220, 235, 0.5) !important;
+    border-left: 6px solid #C2185B;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    color: #5A1E1E;
+}
+
+.stSidebar .stAlertContainer [data-testid="stAlertContentInfo"] {
+    background-color: rgba(255, 220, 235, 0.45) !important;  /* pale blush-lavender */
+    border-left: 4px solid #C2185B;  /* deep magenta accent */
+    color: #5A1E1E;
+}
+/* WARNING – warm coral/apricot tone (not neon yellow) */
+.stAlertContainer [data-testid="stAlertContentWarning"] {
+    background-color: rgba(255, 190, 160, 0.45) !important;
+    border-left: 6px solid #E76F51;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    color: #5A1E1E;
+}
+
+.stSidebar .stAlertContainer [data-testid="stAlertContentWarning"] {
+    background-color: rgba(255, 185, 170, 0.45) !important;  /* warm coral/apricot */
+    border-left: 4px solid #E76F51;  /* complementary red accent */
+    color: #5A1E1E;
+}
+
+/* ERROR – your vivid primary red, slightly translucent */
+.stAlertContainer [data-testid="stAlertContentError"] {
+    background-color: rgba(230, 57, 70, 0.3) !important;
+    border-left: 6px solid #E63946;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    color: #5A1E1E;
+}
+
+.stSidebar .stAlertContainer [data-testid="stAlertContentError"] {
+    background-color: rgba(230, 57, 70, 0.35) !important;  /* slightly translucent primary red */
+    border-left: 4px solid #E63946;
+    color: #5A1E1E;
+}
+
+.stMetric {
+    background: #F4A1A8;
+    border: 1px solid rgba(0, 0, 0, 0.0);
+}
