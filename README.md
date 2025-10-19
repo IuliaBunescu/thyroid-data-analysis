@@ -45,9 +45,8 @@ Understanding thyroid disease through data analysis, with a focus on:
 - Live demo: <[Streamlit Cloud](https://juliab-thyroid-data-analysis.streamlit.app/)>
 
 ## Screenshots
-Include screenshots of the dashboard here. Example markdown placeholders:
 - IDA Tab:
-  ![IDA Tab](thyroid-data-analysis\screenshots\ida-tab.png)
+  ![IDA Tab](https://github.com/IuliaBunescu/thyroid-data-analysis/blob/main/screenshots/ida-tab.png)
 - EDA tab:
   ![EDA Tab](./docs/screenshots/eda_tab.png)
 - Info Tab:
