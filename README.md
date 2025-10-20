@@ -38,7 +38,11 @@ Understanding thyroid disease through data analysis, with a focus on:
 - Diagnosis parsing: raw diagnosis string split into primary and secondary codes and patient_id extracted.
 - Boolean flags: converted 't'/'f' to True/False for easier filtering.
 - Age cleaning: rows with age > 100 are examined and removed by default as likely data entry errors; see notebook to change policy.
-- Missingness strategies shown: threshold-based masking, percentile-based masking, tolerance-based approximate divisibility for floats, and sampled visualizations for large datasets.
+- Missingness strategies shown: analysis of missing data patterns and correlations to inform imputation or exclusion decisions.
+- Target analysis & definition: focus on primary diagnosis codes for thyroid conditions, with filtering options in the app; created a new target variable with less granular classes for modeling.
+- Multivariate analysis: correlation heatmaps and scatter plots to explore relationships between features and features and target.
+- Feature sectioning: dropped unnecessary features (e.g., measured flags) to reduce dimensionality for modeling.
+- Feature importance: used Random Forest, Permutation Importance, and Mutual Information to rank features for understanding predictive power.
 
 
 ## Deployment

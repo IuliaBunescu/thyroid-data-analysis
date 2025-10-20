@@ -1,6 +1,7 @@
+import plotly.express as px
 import plotly.io as pio
 
-pink_red_palette = [
+PINK_RED_PALETTE = [
     "#E63946",  # red-pink
     "#F4A1A8",  # light rose
     "#FFD6DA",  # blush
@@ -10,10 +11,17 @@ pink_red_palette = [
     "#F8C6CC",  # light pink
 ]
 
+DISCRETE_COLOR_PALETTE = px.colors.colorbrewer.RdBu
+CUSTOM_DISCRETE_2VAR_COLOR_PALETTE = [
+    PINK_RED_PALETTE[0],
+    "#DEF2FF",
+]  # red-pink and blue
+CONTINUOUS_COLOR_SCALE = "RdBu_r"
+
 pio.templates["thyroid_theme"] = pio.templates["plotly"].update(
     {
         "layout": {
-            "colorway": pink_red_palette,
+            "colorway": PINK_RED_PALETTE,
             "title": {"font": {"size": 22, "color": "#5A1E1E"}},
         }
     }
