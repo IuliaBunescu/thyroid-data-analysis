@@ -5,8 +5,10 @@ from source.config import (
     AXIS_TICK_FONT_SIZE,
     AXIS_TITLE_FONT_SIZE,
     COLUMN_DESCRIPTIONS,
+    CUSTOM_DISCRETE_2VAR_COLOR_PALETTE,
+    DISCRETE_COLOR_PALETTE,
+    PINK_RED_PALETTE,
     TITLE_FONT_SIZE,
-    pink_red_palette,
 )
 
 
@@ -181,7 +183,7 @@ def feature_explanation_frag(
             fig = px.histogram(
                 x=series,
                 nbins=75,
-                marginal="box",
+                marginal="violin",
                 title=f"Distribution of {feature}",
                 labels={"x": feature},
             )
@@ -260,7 +262,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
         category_orders={"feature": plot_df["feature"].tolist()},
     )
 
-    fig.update_traces(marker_color=pink_red_palette[1], textposition="outside")
+    fig.update_traces(marker_color=PINK_RED_PALETTE[1], textposition="outside")
 
     fig.update_layout(
         margin=dict(l=0, r=0, t=30, b=0),
@@ -342,7 +344,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
         x=missing_matrix.columns.astype(str),
         y=missing_matrix.index,
         aspect="auto",
-        color_continuous_scale=pink_red_palette[2:4],
+        color_continuous_scale=CUSTOM_DISCRETE_2VAR_COLOR_PALETTE,
         origin="lower",
     )
 
@@ -422,7 +424,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
             barmode="group",
             text=miss_rates["missing_pct"].apply(lambda x: f"{x:.1f}%"),
             title="Missing % of related tests when TBG present vs missing",
-            color_discrete_sequence=[pink_red_palette[3], pink_red_palette[2]],
+            color_discrete_sequence=CUSTOM_DISCRETE_2VAR_COLOR_PALETTE,
             labels={
                 "missing_pct": "Missing (%)",
                 "test": "Test",
@@ -500,10 +502,10 @@ def missing_data_analysis_frag(df: pd.DataFrame):
                     histnorm="percent",
                     opacity=0.6,
                     nbins=50,
-                    marginal="box",
+                    marginal="violin",
                     title=f"Percent distribution of {feat} — measured vs missing TBG",
                     labels={feat: feat, "_tbg": ""},
-                    color_discrete_sequence=pink_red_palette[0:2],
+                    color_discrete_sequence=CUSTOM_DISCRETE_2VAR_COLOR_PALETTE[::-1],
                 )
                 fig.update_traces(marker=dict(line=dict(width=0)))
                 fig.update_layout(
@@ -567,7 +569,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
                     barmode="group",
                     title=f"Percent distribution of {feat} — measured vs missing TBG",
                     labels={feat: feat, "percent": "Percent (%)", "_tbg": ""},
-                    color_discrete_sequence=pink_red_palette[2:4],
+                    color_discrete_sequence=CUSTOM_DISCRETE_2VAR_COLOR_PALETTE[::-1],
                 )
                 fig.update_traces(texttemplate="%{y:.1f}%", textposition="outside")
                 fig.update_layout(

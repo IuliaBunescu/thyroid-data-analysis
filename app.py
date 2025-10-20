@@ -5,7 +5,7 @@ import source.config as config
 import source.sidebar as sb
 import source.tabs.eda as eda
 import source.tabs.ida as ida
-import source.tabs.readme as readme
+import source.tabs.info as info
 import streamlit as st
 from source.utils import load_css
 
@@ -35,23 +35,18 @@ sb.sidebar_setup()
 data = pd.read_csv("data/thyroid_data.csv", index_col="patient_id")
 lab_references = pd.read_csv("data/lab_reference_intervals.csv")
 condition_codes = pd.read_csv("data/condition_codes.csv")
+target_data = pd.read_csv("data/thyroid_data_target.csv", index_col="patient_id")
+
 
 # Create tabs
-tab1, tab2, tab3 = st.tabs(["IDA", "EDA", "ReadMe"])
+tab1, tab2, tab3 = st.tabs(["IDA", "EDA", "Info"])
 
 with tab1:
     ida.general_ida_structure(data, lab_references, condition_codes)
 with tab2:
-    eda.general_eda_structure(data)
+    eda.general_eda_structure(data, target_data, condition_codes)
 with tab3:
-    readme.general_readme_structure(
-        st.session_state.age,
-        st.session_state.gender,
-        st.session_state.tsh,
-        st.session_state.t3,
-        st.session_state.t4,
-        st.session_state.ft4,
-    )
+    info.general_readme_structure()
 
 # Footer
 st.sidebar.markdown("---")
