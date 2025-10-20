@@ -472,7 +472,7 @@ def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = N
 
         # Permutation importance
         p_imp = permutation_importance(
-            model, X.values, y.values, n_repeats=10, random_state=0, n_jobs=-1
+            model, X.values, y.values, n_repeats=3, random_state=0, n_jobs=1
         )
         pser = pd.Series(p_imp.importances_mean, index=X.columns).sort_values(
             ascending=False
