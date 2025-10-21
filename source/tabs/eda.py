@@ -3,8 +3,10 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from sklearn.decomposition import PCA
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.feature_selection import mutual_info_classif
+from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.inspection import permutation_importance
 from sklearn.preprocessing import StandardScaler
 from source.config import (
@@ -34,10 +36,14 @@ def general_eda_structure(
 
     st.header("Correlation Analysis")
     correlation_analysis(df, target_df)
+    st.markdown("---")
+
+    st.header("Imputation")
+    df_imputed = imputation(df)
 
     st.markdown("---")
     st.header("Encoding & Feature Selection")
-    feature_selection_and_encoding(df, target_df)
+    feature_selection_and_encoding(df_imputed, target_df)
 
 
 def target_exploration(
@@ -161,9 +167,13 @@ def target_exploration(
         ),
         title=dict(font=dict(size=TITLE_FONT_SIZE)),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
+    st.markdown(
+        "The target is visibly unbalanced, with most patients being labeled as *normal* and having no thyroid condition. To account for this, resampling techniques will be implemented when training the model. No changes will be made to the dataset to account for the imbalance at this step."
+    )
 
 
+@st.fragment
 def multivariate_analysis(
     df: pd.DataFrame, target_df: pd.DataFrame = None, target_col: str = "target"
 ):
@@ -312,7 +322,164 @@ def _plot_corr(sub_df, title_suffix="", numeric_cols=None):
         yaxis=dict(tickfont=dict(size=AXIS_TICK_FONT_SIZE)),
         title=dict(font=dict(size=TITLE_FONT_SIZE)),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
+
+
+def imputation(df: pd.DataFrame):
+    """
+    Imputation strategy for thyroid dataset:
+    - TBG: Drop due to >90% missing data and MNAR nature, but keep TBG_measured flag
+    - sex: Impute with most frequent category
+    - condition_secondary: Impute with '-' (no secondary condition)
+    - Numerical blood features (TSH, T3, TT4, T4U, FTI): Compare KNN vs Iterative (MICE)
+      vs Mean vs Median imputation and choose the method that least alters the correlation structure
+
+    Inputs:
+        - df:
+
+    """
+
+    df_impute = df.copy()
+
+    # 1. Handle TBG column - drop if >90% missing
+    missing_pct = df_impute["TBG"].isna().mean() * 100
+    df_impute = df_impute.drop(columns=["TBG"])
+
+    # 2. Impute sex with mode
+    mode_sex = df_impute["sex"].mode()
+    mode_value = mode_sex.iloc[0]
+    df_impute["sex"] = df_impute["sex"].fillna(mode_value)
+
+    # 3. Impute condition_secondary with '-'
+    df_impute["condition_secondary"] = df_impute["condition_secondary"].fillna("-")
+
+    # 4. Handle numerical blood test features
+    blood_features = ["TSH", "T3", "TT4", "T4U", "FTI"]
+
+    # Calculate original correlation matrix for comparison
+    original_corr = df_impute[blood_features].corr().fillna(0).values
+
+    # Prepare results storage
+    imputation_results = {}
+    correlation_changes = {}
+
+    # Try KNN Imputation
+    try:
+        knn_imputer = KNNImputer(n_neighbors=5)
+        blood_data_knn = knn_imputer.fit_transform(df_impute[blood_features])
+        knn_corr = pd.DataFrame(blood_data_knn, columns=blood_features).corr().values
+        knn_change = np.linalg.norm(knn_corr - original_corr)
+
+        imputation_results["KNN"] = blood_data_knn
+        correlation_changes["KNN"] = knn_change
+    except Exception as e:
+        correlation_changes["KNN"] = np.inf
+
+    # Try Iterative (MICE) Imputation
+    try:
+        mice_imputer = IterativeImputer(random_state=42, max_iter=30, tol=1e-3)
+        blood_data_mice = mice_imputer.fit_transform(df_impute[blood_features])
+        mice_corr = pd.DataFrame(blood_data_mice, columns=blood_features).corr().values
+        mice_change = np.linalg.norm(mice_corr - original_corr)
+
+        imputation_results["MICE"] = blood_data_mice
+        correlation_changes["MICE"] = mice_change
+    except Exception as e:
+        correlation_changes["MICE"] = np.inf
+
+    # Try Mean Imputation
+    try:
+        blood_data_mean = df_impute[blood_features].copy()
+        for col in blood_features:
+            mean_val = df_impute[col].mean()
+            blood_data_mean[col] = df_impute[col].fillna(mean_val)
+
+        mean_corr = blood_data_mean.corr().values
+        mean_change = np.linalg.norm(mean_corr - original_corr)
+
+        imputation_results["Mean"] = blood_data_mean.values
+        correlation_changes["Mean"] = mean_change
+    except Exception as e:
+        correlation_changes["Mean"] = np.inf
+
+    # Try Median Imputation
+    try:
+        blood_data_median = df_impute[blood_features].copy()
+        for col in blood_features:
+            median_val = df_impute[col].median()
+            blood_data_median[col] = df_impute[col].fillna(median_val)
+
+        median_corr = blood_data_median.corr().values
+        median_change = np.linalg.norm(median_corr - original_corr)
+
+        imputation_results["Median"] = blood_data_median.values
+        correlation_changes["Median"] = median_change
+    except Exception as e:
+        correlation_changes["Median"] = np.inf
+
+    # Choose best method
+    valid_methods = {k: v for k, v in correlation_changes.items() if np.isfinite(v)}
+
+    if not valid_methods:
+        # Ultimate fallback - use mean imputation
+        df_final = df_impute.copy()
+        for col in blood_features:
+            mean_val = df_impute[col].mean()
+            df_final[col] = df_impute[col].fillna(mean_val)
+        chosen_method = "Mean (fallback)"
+        correlation_changes["Mean (fallback)"] = "N/A (ultimate fallback)"
+    else:
+        # Choose method with smallest correlation change
+        chosen_method = min(valid_methods, key=valid_methods.get)
+        chosen_data = imputation_results[chosen_method]
+
+        df_final = df_impute.copy()
+        df_final[blood_features] = chosen_data
+
+    # Store results in session state
+    st.session_state["imputed_df"] = df_final
+    st.session_state["imputation_method"] = chosen_method
+    st.session_state["correlation_changes"] = correlation_changes
+
+    # Create comparison table for transparency
+    st.subheader("Imputation Method Comparison (Continuous Numeric Features)")
+    comparison_data = []
+    for method, change in correlation_changes.items():
+        if method == chosen_method:
+            status = "✓ Selected"
+        else:
+            status = "Not selected"
+
+        if isinstance(change, (int, float)) and np.isfinite(change):
+            change_str = f"{change:.6f}"
+        else:
+            change_str = str(change)
+
+        comparison_data.append(
+            {
+                "Method": method,
+                "Pearson Correlation Change (Frobenius Norm)": change_str,
+                "Status": status,
+            }
+        )
+
+    comparison_df = pd.DataFrame(comparison_data)
+    st.dataframe(comparison_df, width="stretch")
+
+    st.caption(
+        "Lower correlation change indicates better preservation of the original correlation structure between blood test features."
+    )
+
+    # Final summary
+    st.write(
+        f"**Imputation Summary:** \n"
+        "- **TBG**: Dropped due to MNAR nature and {missing_pct:.1f}% missing data. TBG_measured flag retained. \n"
+        "- **Sex**: Filled missing values with most frequent category: '{mode_value}' \n"
+        "- **Secondary condition**: Filled with '-' (no secondary condition). Note: this feature was not used for target creation and will be dropped later. \n"
+        "- **Blood test features** (TSH, T3, TT4, T4U, FTI): Compared KNN vs Iterative (MICE) vs Mean vs Median imputation and selected **{chosen_method}** as it produced the smallest change in pairwise correlation structure."
+    )
+
+    return df_final
 
 
 def numerical_pairwise_fragment(
@@ -360,7 +527,7 @@ def numerical_pairwise_fragment(
                 title=dict(font=dict(size=TITLE_FONT_SIZE)),
                 legend=dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
             )
-            row_cols[col_idx].plotly_chart(fig, use_container_width=True)
+            row_cols[col_idx].plotly_chart(fig, width="stretch")
 
 
 def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = None):
@@ -378,7 +545,8 @@ def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = N
         "Some of the features are useful for visualisations but might not be that useful for modeling directly. Because of this a few features have been dropped before encoding:\n"
         "- *Category*, *condition_primary*, *condition_secondary*: they would lead to target leakage if included in modeling.\n"
         "- *referral_source*: not very clear how this is medically relevant, safe to assume it is not important enough to be part of the modeling dataset.\n"
-        "- *T3_measured*, *T4U_measured*, *FTI_measured*, *TSH_measured*, *TBG_measured*, *TT4_measured*: these are just indicators of whether the corresponding test was performed, which is already captured by the presence of the actual test value. They might be useful for a more complex model ensemble approach, but for simplicity we drop them here.\n"
+        "- *T3_measured*, *T4U_measured*, *FTI_measured*, *TSH_measured*, *TT4_measured*: these are just indicators of whether the corresponding test was performed, which is already captured by the presence of the actual test value. They might be useful for a more complex model ensemble approach, but for simplicity we drop them here.\n"
+        " - *TBG*: dropped due to high missingness, however due to its MNAR nature *TBG_measured* is retained to indicate whether the test was performed."
     )
     df_dropped = df.copy()
     df_dropped = df.drop(
@@ -391,7 +559,7 @@ def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = N
             "T4U_measured",
             "FTI_measured",
             "TSH_measured",
-            "TBG_measured",
+            "TBG",
             "TT4_measured",
         ],
         errors="ignore",
@@ -424,127 +592,131 @@ def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = N
             s.str.startswith("f"), 1, np.where(s.str.startswith("m"), 0, np.nan)
         ).astype(float)
 
-    # Fill numeric NaNs with column means
-    for c in df_encoded.columns:
-        if df_encoded[c].isna().any():
-            if np.issubdtype(df_encoded[c].dtype, np.number):
-                df_encoded[c] = df_encoded[c].fillna(df_encoded[c].mean())
-            else:
-                df_encoded[c] = df_encoded[c].fillna(0)
-
     # Save encoded df to session and preview
     st.session_state["encoded_df"] = df_encoded
     st.subheader("Encoded Data (preview)")
-    st.text(
-        "Features that needed encoding were processed as follows:"
-        "\n- Booleans converted to 0/1\n- The only categorical feature remaining was *sex* which is now now 1 for female and 0 for male\n"
+    st.write(
+        "**Encoding Summary:**\n"
+        "- Boolean features converted to 0/1\n"
+        "- Sex feature converted to binary (1 for female, 0 for male)\n"
+        "- Features causing target leakage or deemed not useful for modeling have been dropped\n"
+        "- Missing values handled in previous imputation step"
     )
 
     st.dataframe(df_encoded.head(100))
 
-    st.subheader("Feature Importance")
-    # Supervised path (simple)
-    y = target_series.reindex(df_encoded.index)
-    mask = y.notna()
+    # Feature importance analysis (only if target is available)
+    if target_series is not None:
+        st.subheader("Feature Importance Analysis")
 
-    X = df_encoded.loc[mask].copy()
-    y = y.loc[mask].copy()
+        # Align target with encoded features
+        y = target_series.reindex(df_encoded.index)
+        mask = y.notna()
 
-    try:
-        model = RandomForestClassifier(n_estimators=200, random_state=0, n_jobs=-1)
+        X = df_encoded.loc[mask].copy()
+        y = y.loc[mask].copy()
 
-        model.fit(X.values, y.values)
+        if len(X) == 0:
+            st.warning("No valid samples with both features and target available.")
+            return
 
-        # Tree-based feature importances
-        feat_imp = pd.Series(model.feature_importances_, index=X.columns).sort_values(
-            ascending=False
-        )
-        top_feat_imp = feat_imp.head(20).reset_index()
-        top_feat_imp.columns = ["feature", "importance"]
-        fig_imp = px.bar(
-            top_feat_imp,
-            x="feature",
-            y="importance",
-            title="Model feature importances (tree-based)",
-        )
-        fig_imp.update_layout(margin=dict(l=0, r=0, t=30, b=0))
-        st.plotly_chart(fig_imp, use_container_width=True)
-
-        # Permutation importance
-        p_imp = permutation_importance(
-            model, X.values, y.values, n_repeats=3, random_state=0, n_jobs=1
-        )
-        pser = pd.Series(p_imp.importances_mean, index=X.columns).sort_values(
-            ascending=False
-        )
-        top_p = pser.head(20).reset_index()
-        top_p.columns = ["feature", "perm_importance"]
-        fig_perm = px.bar(
-            top_p,
-            x="feature",
-            y="perm_importance",
-            title="Permutation importances (mean)",
-        )
-        fig_perm.update_layout(margin=dict(l=0, r=0, t=30, b=0))
-        st.plotly_chart(fig_perm, use_container_width=True)
-
-        # Mutual information (simple)
         try:
-            mi = mutual_info_classif(
-                X.values, y.values, discrete_features="auto", random_state=0
-            )
-            mi_ser = pd.Series(mi, index=X.columns).sort_values(ascending=False)
-            top_mi = mi_ser.head(20).reset_index()
-            top_mi.columns = ["feature", "mutual_info"]
-            fig_mi = px.bar(
-                top_mi,
+            model = RandomForestClassifier(n_estimators=200, random_state=0, n_jobs=-1)
+            model.fit(X.values, y.values)
+
+            # Tree-based feature importances
+            feat_imp = pd.Series(
+                model.feature_importances_, index=X.columns
+            ).sort_values(ascending=False)
+            top_feat_imp = feat_imp.head(20).reset_index()
+            top_feat_imp.columns = ["feature", "importance"]
+            fig_imp = px.bar(
+                top_feat_imp,
                 x="feature",
-                y="mutual_info",
-                title="Mutual information (top features)",
+                y="importance",
+                title="Model Feature Importances (Tree-based)",
             )
-            fig_mi.update_layout(margin=dict(l=0, r=0, t=30, b=0))
-            st.plotly_chart(fig_mi, use_container_width=True)
-        except Exception:
-            st.info("Mutual information could not be computed in this environment.")
+            fig_imp.update_layout(margin=dict(l=0, r=0, t=30, b=0))
+            st.plotly_chart(fig_imp, width="stretch")
 
-    except Exception as e:
-        st.warning(f"Supervised importance computation failed: {e}")
+            # Permutation importance
+            p_imp = permutation_importance(
+                model, X.values, y.values, n_repeats=3, random_state=0, n_jobs=1
+            )
+            pser = pd.Series(p_imp.importances_mean, index=X.columns).sort_values(
+                ascending=False
+            )
+            top_p = pser.head(20).reset_index()
+            top_p.columns = ["feature", "perm_importance"]
+            fig_perm = px.bar(
+                top_p,
+                x="feature",
+                y="perm_importance",
+                title="Permutation Importances (Mean)",
+            )
+            fig_perm.update_layout(margin=dict(l=0, r=0, t=30, b=0))
+            st.plotly_chart(fig_perm, width="stretch")
 
-    # PCA visualization
-    st.subheader("PCA")
-    try:
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X.values)
-        pca = PCA(n_components=min(10, X_scaled.shape[1]))
-        pcs = pca.fit_transform(X_scaled)
-        evr = pca.explained_variance_ratio_
-        scree = pd.DataFrame(
-            {"pc": [f"PC{i+1}" for i in range(len(evr))], "explained_variance": evr}
-        )
-        fig_scree = px.bar(
-            scree,
-            x="pc",
-            y="explained_variance",
-            title="PCA Explained Variance (scree)",
-        )
-        st.plotly_chart(fig_scree, use_container_width=True)
+            # Mutual information
+            try:
+                mi = mutual_info_classif(
+                    X.values, y.values, discrete_features="auto", random_state=0
+                )
+                mi_ser = pd.Series(mi, index=X.columns).sort_values(ascending=False)
+                top_mi = mi_ser.head(20).reset_index()
+                top_mi.columns = ["feature", "mutual_info"]
+                fig_mi = px.bar(
+                    top_mi,
+                    x="feature",
+                    y="mutual_info",
+                    title="Mutual Information (Top Features)",
+                )
+                fig_mi.update_layout(margin=dict(l=0, r=0, t=30, b=0))
+                st.plotly_chart(fig_mi, width="stretch")
+            except Exception:
+                st.info("Mutual information could not be computed in this environment.")
 
-        pc_df = pd.DataFrame(pcs[:, :2], columns=["PC1", "PC2"], index=X.index)
+        except Exception as e:
+            st.warning(f"Supervised importance computation failed: {e}")
 
-        pc_df["target"] = y.astype(str).values
-        fig_pca = px.scatter(
-            pc_df,
-            x="PC1",
-            y="PC2",
-            color="target",
-            title="PCA (PC1 vs PC2) colored by target",
-            color_discrete_sequence=DISCRETE_COLOR_PALETTE,
-        )
+        # PCA visualization
+        st.subheader("PCA Visualization")
+        try:
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X.values)
+            pca = PCA(n_components=min(10, X_scaled.shape[1]))
+            pcs = pca.fit_transform(X_scaled)
+            evr = pca.explained_variance_ratio_
 
-        st.plotly_chart(fig_pca, use_container_width=True)
+            # Scree plot
+            scree = pd.DataFrame(
+                {"pc": [f"PC{i+1}" for i in range(len(evr))], "explained_variance": evr}
+            )
+            fig_scree = px.bar(
+                scree,
+                x="pc",
+                y="explained_variance",
+                title="PCA Explained Variance (Scree Plot)",
+            )
+            st.plotly_chart(fig_scree, width="stretch")
 
-    except Exception as e:
-        st.warning(f"PCA visualization failed: {e}")
+            # PCA scatter plot
+            pc_df = pd.DataFrame(pcs[:, :2], columns=["PC1", "PC2"], index=X.index)
+            pc_df["target"] = y.astype(str).values
+            fig_pca = px.scatter(
+                pc_df,
+                x="PC1",
+                y="PC2",
+                color="target",
+                title="PCA (PC1 vs PC2) Colored by Target",
+                color_discrete_sequence=DISCRETE_COLOR_PALETTE,
+            )
+            st.plotly_chart(fig_pca, width="stretch")
+
+        except Exception as e:
+            st.warning(f"PCA visualization failed: {e}")
+    else:
+        st.info("No target variable provided - skipping feature importance analysis.")
 
     # csv = df_encoded.to_csv(index=False)
     # st.download_button(
