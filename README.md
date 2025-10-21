@@ -1,12 +1,14 @@
 # Thyroid Analysis Dashboard
 This repository contains exploration, cleaning, visualization, and a Streamlit dashboard built around the UCI "Thyroid Disease" dataset (most extensive variant, made from multiple datasets). 
+
 ## Scope
 Understanding thyroid disease through data analysis, with a focus on:
-- Data cleaning and preprocessing techniques for clinical datasets.
-- Exploratory data analysis (EDA) with missing data considerations.
+- Data cleaning and preprocessing techniques for clinical datasets with systematic missing data handling.
+- Advanced imputation strategies comparing KNN, MICE, Mean, and Median methods based on correlation preservation.
+- Exploratory data analysis (EDA) with comprehensive missing data visualization and analysis.
 - Interactive visualization of hormone levels against clinical reference ranges.
+- Feature selection and encoding optimized for medical data to avoid target leakage.
 - Predictive insights for individual patients based on lab results.
-
 
 ## Dataset (source)
 - Name: Thyroid Disease
@@ -24,23 +26,32 @@ Understanding thyroid disease through data analysis, with a focus on:
   - thyroid_data.csv (cleaned main dataset)
   - condition_codes.csv (mapping of diagnosis codes)
   - lab_reference_intervals.csv (clinical reference ranges)
+  - thyroid_data_target.csv (simplified target categories)
 - source/ — app helper modules (config, sidebar, utils, tabs)
 - .streamlit/, assets/ — app config and static assets
 
-
 ## Data processing highlights
-- Diagnosis parsing: raw diagnosis string split into primary and secondary codes, and patient_id extracted.
-- Boolean flags: converted 't'/'f' to True/False for easier filtering.
-- Age cleaning: rows with age > 100 are examined and removed by default as likely data entry errors; see notebook to change policy.
-- Missingness strategies shown: analysis of missing data patterns and correlations to inform imputation or exclusion decisions.
-- Target analysis & definition: focus on primary diagnosis codes for thyroid conditions, with filtering options in the app; created a new target variable with less granular classes for modeling.
-- Multivariate analysis: correlation heatmaps and scatter plots to explore relationships between features and features and target.
-- Feature sectioning: dropped unnecessary features (e.g., measured flags) to reduce dimensionality for modeling.
-- Feature importance: used Random Forest, Permutation Importance, and Mutual Information to rank features for understanding predictive power.
+- **Diagnosis parsing**: Raw diagnosis string split into primary and secondary codes, and patient_id extracted.
+- **Boolean flags**: Converted 't'/'f' to True/False for easier filtering.
+- **Age cleaning**: Rows with age > 100 are examined and removed by default as likely data entry errors.
+- **Advanced imputation strategy**:
+  - TBG: Dropped due to >90% missing data and MNAR nature, retained TBG_measured flag
+  - Sex: Imputed with most frequent category
+  - Secondary condition: Filled with '-' (no secondary condition)
+  - Numerical blood features (TSH, T3, TT4, T4U, FTI): Compared KNN vs Iterative (MICE) vs Mean vs Median imputation and selected method with smallest correlation structure change
+- **Missing data analysis**: Interactive visualizations including missing counts, percentages, missingness matrices, and correlation patterns between missing values.
+- **Target engineering**: Created simplified diagnostic categories from complex condition codes for balanced modeling.
+- **Feature selection**: Systematic removal of features causing target leakage (diagnosis codes, categories) and redundant measured flags.
+- **Feature encoding**: Boolean to binary conversion, categorical encoding while preserving medical interpretability.
+- **Feature importance analysis**: Random Forest, Permutation Importance, and Mutual Information rankings with PCA visualization.
 
+## App features
+- **IDA Tab**: Interactive missing data analysis with Plotly visualizations, imputation comparison, and data quality assessment.
+- **EDA Tab**: Comprehensive exploratory analysis including target distribution, correlation heatmaps, feature importance, and PCA with medical context.
+- **Info Tab**: Dataset documentation, lab reference ranges, and methodology explanations.
 
 ## Deployment
-- Live demo: <[Streamlit Cloud](https://juliab-thyroid-data-analysis.streamlit.app/)>
+- Live demo: [Streamlit Cloud](https://juliab-thyroid-data-analysis.streamlit.app/)
 
 ## Screenshots
 - IDA Tab:
@@ -48,9 +59,23 @@ Understanding thyroid disease through data analysis, with a focus on:
 - EDA tab:
   ![EDA Tab](https://github.com/IuliaBunescu/thyroid-data-analysis/blob/main/screenshots/eda-tab.png)
 - Info Tab:
-  ![Info Tab](./docs/screenshots/info_tab.png)
+  ![Info Tab](./screenshots/info_tab.png)
 
-Create the docs/screenshots directory and add PNGs to display them here.
+## Quick start (local)
+1. Create and activate a virtual environment:
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate  # Windows
+   source .venv/bin/activate  # macOS/Linux
+   ```
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Run the dashboard:
+   ```bash
+   streamlit run app.py
+   ```
 
 ## Dataset Citation
 If you use the dataset in publications, cite the original data as:
