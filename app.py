@@ -1,11 +1,11 @@
 import pathlib
 
 import pandas as pd
-import source.config as config
 import source.sidebar as sb
 import source.tabs.eda as eda
 import source.tabs.ida as ida
 import source.tabs.info as info
+import source.tabs.modelling as modelling
 import streamlit as st
 from source.utils import load_css
 
@@ -39,13 +39,15 @@ target_data = pd.read_csv("data/thyroid_data_target.csv", index_col="patient_id"
 
 
 # Create tabs
-tab1, tab2, tab3 = st.tabs(["IDA", "EDA", "Info"])
+tab1, tab2, tab3, tab4 = st.tabs(["IDA", "EDA", "Modelling", "Info"])
 
 with tab1:
     ida.general_ida_structure(data, lab_references, condition_codes)
 with tab2:
     eda.general_eda_structure(data, target_data, condition_codes)
 with tab3:
+    modelling.general_modelling_structure()
+with tab4:
     info.general_readme_structure()
 
 # Footer
