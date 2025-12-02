@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
+from sklearn.calibration import LabelEncoder
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.experimental import enable_iterative_imputer
@@ -549,8 +550,9 @@ def pca_fragment(X: pd.DataFrame, y: pd.Series, n_components: int = None):
     pca = PCA(n_components=n_components)
     pcs = pca.fit_transform(X_scaled)
 
+    # Store PCA scores and model as simple numpy arrays (no extra index objects)
     st.session_state["pca_model"] = pca
-    st.session_state["pca_scaled_data"] = pcs
+    st.session_state["pca_scaled_X"] = pcs
 
     evr = pca.explained_variance_ratio_
     cum_evr = np.cumsum(evr)
@@ -765,6 +767,14 @@ def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = N
 
         X = df_encoded.loc[mask].copy()
         y = y.loc[mask].copy()
+
+        # Encoding the target
+        y_ser = pd.Series(y).astype(str).str.strip()
+
+        # store target as plain numpy values under both keys for simplicity
+        le = LabelEncoder()
+        y_enc = le.fit_transform(y_ser)
+        st.session_state["y_series"] = y_enc
 
         if len(X) == 0:
             st.warning("No valid samples with both features and target available.")
