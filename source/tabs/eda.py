@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.experimental import enable_iterative_imputer
@@ -13,6 +15,7 @@ from source.config import (
     AXIS_TICK_FONT_SIZE,
     AXIS_TITLE_FONT_SIZE,
     CONTINUOUS_COLOR_SCALE,
+    CUSTOM_DISCRETE_2VAR_COLOR_PALETTE,
     DISCRETE_COLOR_PALETTE,
     TITLE_FONT_SIZE,
 )
@@ -276,7 +279,7 @@ def correlation_analysis(
         index=default_idx,
     )
 
-    st.subheader("Correlation Matrix")
+    st.subheader("Pearson Correlation Matrix")
 
     # If no grouping, just show overall correlation
     if group_by == "None":
@@ -474,7 +477,7 @@ def imputation(df: pd.DataFrame):
     st.write(
         f"**Imputation Summary:** \n"
         "- **TBG**: Dropped due to MNAR nature and {missing_pct:.1f}% missing data. TBG_measured flag retained. \n"
-        "- **Sex**: Filled missing values with most frequent category: '{mode_value}' \n"
+        f"- **Sex**: Filled missing values with most frequent category: '{mode_value}' \n"
         "- **Secondary condition**: Filled with '-' (no secondary condition). Note: this feature was not used for target creation and will be dropped later. \n"
         "- **Blood test features** (TSH, T3, TT4, T4U, FTI): Compared KNN vs Iterative (MICE) vs Mean vs Median imputation and selected **{chosen_method}** as it produced the smallest change in pairwise correlation structure."
     )
@@ -530,6 +533,153 @@ def numerical_pairwise_fragment(
             row_cols[col_idx].plotly_chart(fig, width="stretch")
 
 
+@st.fragment
+def pca_fragment(X: pd.DataFrame, y: pd.Series, n_components: int = None):
+    """Interactive PCA fragment: shows an interactive scree plot and a biplot.
+
+    - `X`: DataFrame of numeric features (already aligned to samples)
+    - `y`: Series of labels (will be cast to str for coloring)
+    - `n_components`: number of PCA components to compute (defaults to min(10, n_features))
+    """
+    if n_components is None:
+        n_components = min(10, X.shape[1])
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X.values)
+    pca = PCA(n_components=n_components)
+    pcs = pca.fit_transform(X_scaled)
+
+    st.session_state["pca_model"] = pca
+    st.session_state["pca_scaled_data"] = pcs
+
+    evr = pca.explained_variance_ratio_
+    cum_evr = np.cumsum(evr)
+    svals = pca.singular_values_
+    V = pca.components_.T
+
+    # Raw loadings scaled by singular values for PC1/PC2
+    loadings_raw = np.column_stack(
+        [
+            V[:, 0] * (svals[0] if len(svals) > 0 else 1.0),
+            V[:, 1] * (svals[1] if len(svals) > 1 else 1.0),
+        ]
+    )
+
+    # Automatic scale so loadings fit the score cloud
+    scores = pcs[:, :2]
+    score_max = np.max(np.abs(scores)) if scores.size > 0 else 1.0
+    loading_max = np.max(np.abs(loadings_raw)) if loadings_raw.size > 0 else 1.0
+    base_scale = 0.9 * score_max / loading_max if loading_max > 0 else 1.0
+
+    # Scree figure (individual + cumulative)
+    pcs_idx = list(range(1, len(evr) + 1))
+    scree_fig = go.Figure()
+    scree_fig.add_trace(
+        go.Scatter(
+            x=pcs_idx,
+            y=evr,
+            mode="lines+markers",
+            name="Individual",
+            marker=dict(color=CUSTOM_DISCRETE_2VAR_COLOR_PALETTE[1], size=8),
+        )
+    )
+    scree_fig.add_trace(
+        go.Scatter(
+            x=pcs_idx,
+            y=cum_evr,
+            mode="lines+markers",
+            name="Cumulative",
+            marker=dict(color=CUSTOM_DISCRETE_2VAR_COLOR_PALETTE[0], size=8),
+        )
+    )
+    scree_fig.update_xaxes(
+        title_text="Principal Component", tickmode="array", tickvals=pcs_idx
+    )
+    scree_fig.update_yaxes(title_text="Proportion of Variance Explained")
+    scree_fig.update_layout(title_text="PCA Scree Plot")
+
+    st.plotly_chart(scree_fig, use_container_width=True)
+
+    # Biplot: interactive
+
+    # Slider for interactive scaling
+    scale_mult = st.slider(
+        "Loadings scale multiplier", min_value=0.1, max_value=5.0, value=1.0, step=0.1
+    )
+    scale = base_scale * scale_mult
+    biplot_fig = go.Figure()
+    labels = y.astype(str).values
+    unique_labels = np.unique(labels)
+    palette = (
+        DISCRETE_COLOR_PALETTE if DISCRETE_COLOR_PALETTE else px.colors.qualitative.T10
+    )
+    for idx, lab in enumerate(unique_labels):
+        mask = labels == lab
+        biplot_fig.add_trace(
+            go.Scatter(
+                x=scores[mask, 0],
+                y=scores[mask, 1],
+                mode="markers",
+                name=str(lab),
+                marker=dict(size=7, color=palette[idx % len(palette)], opacity=0.8),
+                hoverinfo="text",
+                hovertext=[
+                    f"{lab}<br>PC1: {x:.3f}<br>PC2: {y:.3f}"
+                    for x, y in scores[mask, :2]
+                ],
+            )
+        )
+
+    feature_names = X.columns.tolist()
+    # loading lines + hover markers (labels appear on hover only)
+    for i, feature in enumerate(feature_names):
+        lx = loadings_raw[i, 0] * scale
+        ly = loadings_raw[i, 1] * scale
+        biplot_fig.add_trace(
+            go.Scatter(
+                x=[0, lx],
+                y=[0, ly],
+                mode="lines",
+                line=dict(color="red", width=2),
+                showlegend=False,
+                hoverinfo="text",
+                hovertext=[
+                    f"{feature} loading: ({loadings_raw[i,0]:.4f}, {loadings_raw[i,1]:.4f})"
+                ],
+            )
+        )
+        biplot_fig.add_trace(
+            go.Scatter(
+                x=[lx],
+                y=[ly],
+                mode="markers",
+                marker=dict(size=6, color="red"),
+                showlegend=False,
+                hoverinfo="text",
+                hovertext=[f"{feature}<br>loading (scaled): ({lx:.3f}, {ly:.3f})"],
+            )
+        )
+
+    pc1_var = evr[0] if len(evr) > 0 else 0.0
+    pc2_var = evr[1] if len(evr) > 1 else 0.0
+    biplot_fig.update_xaxes(title_text=f"PC1 ({pc1_var:.1%} variance)")
+    biplot_fig.update_yaxes(title_text=f"PC2 ({pc2_var:.1%} variance)")
+    biplot_fig.update_layout(
+        title_text="PCA Biplot (hover features to see loadings)",
+        height=600,
+    )
+
+    st.plotly_chart(biplot_fig, use_container_width=True)
+    # show loadings table concisely under the biplot
+    loadings = {
+        "feature": feature_names,
+        "PC1": (loadings_raw[:, 0]).round(4),
+        "PC2": (loadings_raw[:, 1]).round(4),
+    }
+    loadings_df = pd.DataFrame(loadings).set_index("feature")
+    st.dataframe(loadings_df)
+
+
 def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = None):
     """
     Simplified encoder:
@@ -542,7 +692,7 @@ def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = N
     st.subheader("Feature Selection")
 
     st.write(
-        "Some of the features are useful for visualisations but might not be that useful for modeling directly. Because of this a few features have been dropped before encoding:\n"
+        "Some of the features are useful for visualization but might not be that useful for modeling. Because of this, a few features have been dropped before encoding:\n"
         "- *Category*, *condition_primary*, *condition_secondary*: they would lead to target leakage if included in modeling.\n"
         "- *referral_source*: not very clear how this is medically relevant, safe to assume it is not important enough to be part of the modeling dataset.\n"
         "- *T3_measured*, *T4U_measured*, *FTI_measured*, *TSH_measured*, *TT4_measured*: these are just indicators of whether the corresponding test was performed, which is already captured by the presence of the actual test value. They might be useful for a more complex model ensemble approach, but for simplicity we drop them here.\n"
@@ -682,37 +832,10 @@ def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = N
         # PCA visualization
         st.subheader("PCA Visualization")
         try:
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(X.values)
-            pca = PCA(n_components=min(10, X_scaled.shape[1]))
-            pcs = pca.fit_transform(X_scaled)
-            evr = pca.explained_variance_ratio_
-
-            # Scree plot
-            scree = pd.DataFrame(
-                {"pc": [f"PC{i+1}" for i in range(len(evr))], "explained_variance": evr}
+            pca_fragment(X, y, n_components=X.shape[1])
+            st.info(
+                "It can be observed that the classes are not very well separated in PCA space, indicating that more complex modeling techniques may be required to achieve good classification performance. Also, choosing how many components to retain will be non-trivial given the gradual variance decay. The modelling will therefore start simple, with just 3 principal components, and build up complexity from there."
             )
-            fig_scree = px.bar(
-                scree,
-                x="pc",
-                y="explained_variance",
-                title="PCA Explained Variance (Scree Plot)",
-            )
-            st.plotly_chart(fig_scree, width="stretch")
-
-            # PCA scatter plot
-            pc_df = pd.DataFrame(pcs[:, :2], columns=["PC1", "PC2"], index=X.index)
-            pc_df["target"] = y.astype(str).values
-            fig_pca = px.scatter(
-                pc_df,
-                x="PC1",
-                y="PC2",
-                color="target",
-                title="PCA (PC1 vs PC2) Colored by Target",
-                color_discrete_sequence=DISCRETE_COLOR_PALETTE,
-            )
-            st.plotly_chart(fig_pca, width="stretch")
-
         except Exception as e:
             st.warning(f"PCA visualization failed: {e}")
     else:
