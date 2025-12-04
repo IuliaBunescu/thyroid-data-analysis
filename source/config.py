@@ -11,10 +11,21 @@ PINK_RED_PALETTE = [
     "#F8C6CC",  # light pink
 ]
 
-DISCRETE_COLOR_PALETTE = px.colors.colorbrewer.RdBu
+DISCRETE_COLOR_PALETTE = [
+    "#67001f",  # dark red
+    "#b2182b",
+    "#d6604d",
+    "#f4a582",
+    "#eb8346",
+    "#81b7d4",
+    "#487d98",
+    "#1370a9",
+    "#0c4075",
+    "#053061",  # dark blue
+]
 CUSTOM_DISCRETE_2VAR_COLOR_PALETTE = [
     PINK_RED_PALETTE[0],
-    "#DEF2FF",
+    "#c0d9eb",
 ]  # red-pink and blue
 CONTINUOUS_COLOR_SCALE = "RdBu_r"
 
