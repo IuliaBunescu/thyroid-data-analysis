@@ -1,52 +1,205 @@
+import os
+
+import joblib
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import StratifiedKFold, cross_validate
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split
 from sklearn.svm import SVC
+from xgboost import XGBClassifier
+
+from ..utils import _metric_plot
 
 
 def general_modelling_structure():
     """
     General structure for the Modelling tab
     """
-    st.header("Modelling")
-
     st.write(
-        "Classification experiments using PCA-reduced features (from session state)."
+        " **Training and Evaluation** \n"
+        "- We use Stratified K-Fold CV to preserve class proportions across folds. \n"
+        "- For imbalance, a simple class_weight='balanced' option was used, which reweights classes at training time for models that accept class_weight.\n"
+        "- Results are evaluated using the following metrics, all suitable for multiclass classification:\n"
+        "    - Balanced Accuracy: accounts for class imbalance by averaging recall obtained on each class.\n"
+        "    - Macro F1: harmonic mean of precision and recall, averaged equally across classes.\n"
+        "    - ROC AUC (OvR, Macro): area under the ROC curve using One-vs-Rest approach, averaged equally across classes.\n"
+        "- Hyperparameters are kept mostly at default values, with some adjustments for training speed and convergence.\n"
+        "- Experiments are run live in the app, which may be time and resource intensive, therefore results are also saved to disk for later visualization.\n"
     )
-    modelling_fragment()
+    st.markdown("---")
+
+    modelling_section(
+        "PCA Data Modelling Experiments",
+        X_name="pca_scaled_X",
+        y_name="y_series",
+        feature_set="pca",
+    )
+    st.write(
+        "As expected given the underlying non-linearities in the data, PCA features do not help in reducing dimensionality while preserving model performance."
+        " Therefore, we proceed to use manually selected features based on EDA results."
+    )
+
+    st.markdown("---")
+    modelling_section(
+        "Manually Selected Features Modelling Experiments",
+        X_name="selected_scaled_X",
+        y_name="y_series",
+        feature_set="selected",
+    )
+
+    st.subheader("Model Selection")
+    st.write(
+        "Based on the modelling experiments above, using the manually selected features based on the EDA results is preferred. "
+        "The best performing model overall is **Random Forest**, achieving balanced accuracy of approximately 0.75 and macro F1 of approximately 0.73 with around 8 features."
+        " This model will be selected for further tuning and deployment in the prediction section."
+    )
+
+    st.markdown("---")
+    st.subheader("Testing the Choosen Model")
+    best_model_testing()
+
+
+def run_model_experiments(X, y, chosen, comp_values, skf, scoring, feature_set: str):
+    """Run cross-validated experiments for a list of chosen (name, clf) pairs.
+
+    Returns a pandas DataFrame with one row per classifier x n_components.
+    """
+    results = []
+    total_tasks = len(chosen) * len(comp_values)
+    completed = 0
+    progress = st.progress(0)
+
+    for name, clf in chosen:
+        for n_comp in comp_values:
+            X_sub = X[:, :n_comp]
+            try:
+                cv_res = cross_validate(
+                    clf, X_sub, y, cv=skf, scoring=scoring, n_jobs=-1
+                )
+                results.append(
+                    {
+                        "classifier": name,
+                        "feature_set": feature_set,
+                        "n_components": n_comp,
+                        "balanced_accuracy": float(
+                            np.mean(cv_res.get("test_balanced_accuracy", [np.nan]))
+                        ),
+                        "f1_macro": float(
+                            np.mean(cv_res.get("test_f1_macro", [np.nan]))
+                        ),
+                        "roc_auc_ovr": float(
+                            np.mean(cv_res.get("test_roc_auc_ovr", [np.nan]))
+                        ),
+                    }
+                )
+            except Exception:
+                results.append(
+                    {
+                        "classifier": name,
+                        "feature_set": feature_set,
+                        "n_components": n_comp,
+                        "balanced_accuracy": np.nan,
+                        "f1_macro": np.nan,
+                        "roc_auc_ovr": np.nan,
+                    }
+                )
+            completed += 1
+            progress.progress(int((completed / total_tasks) * 100))
+
+    progress.progress(100)
+    return pd.DataFrame(results)
+
+
+def save_results_df(results_df: pd.DataFrame, save_dir: str | None = None):
+    """Save modelling results to a single CSV, preserving prior feature sets.
+
+    - Defaults to `data/modelling_results/model_results.csv`.
+    - If the file exists, merge by `classifier`,`feature_set`,`n_components` and update rows;
+      otherwise, append new rows so results from other feature sets remain intact.
+    """
+    if save_dir is None:
+        save_dir = os.path.join(os.getcwd(), "data", "modelling_results")
+    os.makedirs(save_dir, exist_ok=True)
+
+    fullpath = os.path.join(save_dir, "model_results.csv")
+
+    try:
+        if os.path.isfile(fullpath):
+            existing = pd.read_csv(fullpath)
+            key_cols = ["classifier", "feature_set", "n_components"]
+            # Drop any duplicates in existing
+            if not existing.empty:
+                existing = existing.drop_duplicates(subset=key_cols, keep="last")
+            # Drop duplicates in new
+            results_df = results_df.drop_duplicates(subset=key_cols, keep="last")
+            # Merge: prefer new rows for same key
+            merged = pd.concat([existing, results_df], ignore_index=True)
+            merged = merged.drop_duplicates(subset=key_cols, keep="last")
+            merged.to_csv(fullpath, index=False)
+        else:
+            results_df.to_csv(fullpath, index=False)
+    except Exception:
+        # Fallback: write new results (never delete existing file contents)
+        results_df.to_csv(fullpath, index=False)
+
+    return fullpath
+
+
+def modelling_section(subheader_title: str, X_name: str, y_name: str, feature_set: str):
+
+    st.subheader(subheader_title)
+    with st.expander(
+        "Live Modelling Experiments (time consuming and resource intensive)",
+        expanded=False,
+    ):
+        live_modelling_fragment(
+            start_components=2,
+            X_name=X_name,
+            y_name=y_name,
+            feature_set=feature_set,
+        )
+
+    st.markdown("#### Modelling Results Visualization")
+    visualize_previous_results(feature_set_filter=feature_set)
 
 
 @st.fragment
-def modelling_fragment(
-    X: pd.DataFrame = None,
-    y: pd.Series = None,
+def live_modelling_fragment(
+    X_name: str,
+    y_name: str,
+    feature_set: str,
     start_components: int = 2,
-    max_components: int = None,
+    X=None,
+    y=None,
 ):
-    """Run simple classification experiments using the first N PCA components.
-
-    - If `X`/`y` are not provided, the fragment will try to read `st.session_state['pca_scaled_X']`
-      and `st.session_state['y_series']`.
-    - Runs a small set of classifiers with Stratified K-Fold CV and reports accuracy / f1 / precision / recall.
-    - By default starts with `start_components` (3) and increments up to `max_components` (or n_features).
     """
-    # Simple resolution: load plain arrays stored in session_state
+    Live modelling fragment for running classification experiments using X and y live in the app.
 
+    :param X: Feature matrix (PCA-scaled).
+    :type X: np.ndarray
+    :param y: Target vector.
+    :type y: np.ndarray
+    :param start_components: The starting number of PCA components to use.
+    :type start_components: int
+    :param X_name: The session state key name for X if not provided.
+    :type X_name: str
+    :param y_name: The session state key name for y if not provided.
+    :type y_name: str
+    """
     if X is None:
-        X = st.session_state.get("pca_scaled_X")
+        X = st.session_state.get(X_name)
     if y is None:
-        # prefer y_series then target_series
-        y = st.session_state.get("y_series")
+        y = st.session_state.get(y_name)
 
     if X is None or y is None:
         available = list(st.session_state.keys())
         st.warning(
-            f"PCA-scaled features (`pca_scaled_X`) or target (`y_series`/`target_series`) not found. Available keys: {available}"
+            f"PCA-scaled features (`{X_name}`) or target (`{y_name}`/`target_series`) not found. Available keys: {available}"
         )
         return
 
@@ -60,24 +213,41 @@ def modelling_fragment(
         return
 
     n_features = X.shape[1]
-    if max_components is None:
-        max_components = n_features
+    max_components = n_features
 
     start_components = max(1, min(start_components, max_components))
 
-    # Base classifier constructors
+    # Use stable keys per feature_set to avoid duplicates across fragments
+
+    # Base classifier constructors (limited to RF, XGB, SVC, LR)
+    # Multiclass-only: determine number of classes
+    classes = np.unique(y)
+    n_classes = len(classes)
+
     base_classifiers = {
         "LogisticRegression": LogisticRegression(
-            max_iter=2000, solver="lbfgs", multi_class="auto"
+            max_iter=2000,
+            solver="lbfgs",
         ),
         "RandomForest": RandomForestClassifier(
-            n_estimators=200, random_state=0, n_jobs=-1
+            n_estimators=300, random_state=0, n_jobs=-1
         ),
         "SVC": SVC(probability=True, kernel="rbf", random_state=0),
-        "GradientBoosting": GradientBoostingClassifier(random_state=0),
-        "KNeighbors": KNeighborsClassifier(),
     }
-
+    # Configure XGBoost for multiclass
+    base_classifiers["XGBoost"] = XGBClassifier(
+        n_estimators=400,
+        learning_rate=0.05,
+        max_depth=6,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        reg_lambda=1.0,
+        objective="multi:softprob",
+        eval_metric="mlogloss",
+        num_class=n_classes,
+        n_jobs=-1,
+        random_state=0,
+    )
     # Build actual classifiers applying class_weight where available
     classifiers = {}
     for name, clf in base_classifiers.items():
@@ -97,26 +267,22 @@ def modelling_fragment(
                     )
             except Exception:
                 classifiers[name] = clf
+        elif name == "XGBoost":
+            # XGB uses scale_pos_weight already; keep as is
+            classifiers[name] = clf
         else:
             classifiers[name] = clf
-
-    st.info(
-        """ **Training and Evaluation**
-
-        -We use Stratified K-Fold CV to preserve class proportions across folds.
-        -For imbalance handling the app supports a simple class_weight='balanced' option which reweights classes at training time for models that accept class_weight.
-        -Results are summarized using weighted metrics (F1/precision/recall) so performance reflects class distribution.)
-    """
-    )
-    st.write(
-        "Select classifiers to include in the comparison and run CV across increasing PCA components."
-    )
+    st.write("Select classifiers to include in the modelling.")
 
     # classifier selection UI
     chosen = []
     cols = st.columns(len(classifiers))
     for i, (name, clf) in enumerate(classifiers.items()):
-        if cols[i].checkbox(name, value=True):
+        if cols[i].checkbox(
+            name,
+            value=True,
+            key=f"clf_select_{feature_set}_{i}_{name}",
+        ):
             chosen.append((name, clf))
 
     if not chosen:
@@ -125,17 +291,25 @@ def modelling_fragment(
 
     # Controls for components
     max_c = st.slider(
-        "Max PCA components to evaluate",
+        "Max features to evaluate",
         min_value=start_components,
         max_value=max_components,
         value=max_components,
         step=1,
+        key=f"max_components_slider_{feature_set}",
     )
     step = st.number_input(
-        "Step size for components", min_value=1, max_value=5, value=1, step=1
+        "Step size for components",
+        min_value=1,
+        max_value=5,
+        value=1,
+        step=1,
+        key=f"components_step_input_{feature_set}",
     )
 
-    run_button = st.button("Run experiments")
+    run_button = st.button(
+        "Run experiments", key=f"run_experiments_button_{feature_set}"
+    )
     if not run_button:
         st.write(
             f"Ready to run experiments using components {start_components}..{max_c} (step {step})"
@@ -144,122 +318,178 @@ def modelling_fragment(
 
     # Prepare evaluation
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
-    # Use metrics that are less sensitive to imbalance by using weighted averages
+    # Metrics: multiclass only, include macro ROC AUC (OvR)
     scoring = {
-        "accuracy": "accuracy",
-        "f1_weighted": "f1_weighted",
-        "precision_weighted": "precision_weighted",
-        "recall_weighted": "recall_weighted",
+        "balanced_accuracy": "balanced_accuracy",
+        "f1_macro": "f1_macro",
+        "roc_auc_ovr": "roc_auc_ovr",
     }
-
-    results = []
     comp_values = list(range(start_components, max_c + 1, step))
 
-    progress = st.progress(0)
-    total_tasks = len(chosen) * len(comp_values)
-    completed = 0
+    # run experiments via reusable helper and update progress bar per completed task
+    results_df = run_model_experiments(
+        X, y, chosen, comp_values, skf, scoring, feature_set=feature_set
+    )
 
-    for name, clf in chosen:
-        for n_comp in comp_values:
-            X_sub = X[:, :n_comp]
-            try:
-                cv_res = cross_validate(
-                    clf, X_sub, y, cv=skf, scoring=scoring, n_jobs=-1
-                )
-            except Exception as e:
-                st.warning(
-                    f"Evaluation failed for {name} with {n_comp} components: {e}"
-                )
-                # record NaNs
-                results.append(
-                    {
-                        "classifier": name,
-                        "n_components": n_comp,
-                        "accuracy": np.nan,
-                        "f1_weighted": np.nan,
-                        "precision_weighted": np.nan,
-                        "recall_weighted": np.nan,
-                    }
-                )
-                completed += 1
-                progress.progress(int(completed / total_tasks * 100))
-                continue
+    # Always save results to the single CSV file
+    save_results_df(results_df)
 
-            results.append(
-                {
-                    "classifier": name,
-                    "n_components": n_comp,
-                    "accuracy": float(np.mean(cv_res["test_accuracy"])),
-                    "f1_weighted": float(np.mean(cv_res["test_f1_weighted"])),
-                    "precision_weighted": float(
-                        np.mean(cv_res["test_precision_weighted"])
-                    ),
-                    "recall_weighted": float(np.mean(cv_res["test_recall_weighted"])),
-                }
-            )
-
-            completed += 1
-            progress.progress(int(completed / total_tasks * 100))
-
-    results_df = pd.DataFrame(results)
-
-    if results_df.empty:
-        st.warning("No results to display.")
-        return
-
-    # Layout: two columns, show two metric plots per column
-    col1, col2 = st.columns(2)
-
-    # Helper to build a line plot for a metric
-    def _metric_plot(df, metric, title):
-        try:
-            fig = px.line(
-                df,
-                x="n_components",
-                y=metric,
-                color="classifier",
-                markers=True,
-                title=title,
-                labels={"n_components": "# PCA components", metric: title},
-            )
-            fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
-            return fig
-        except Exception:
-            return None
-
-    figs = {
-        "accuracy": _metric_plot(results_df, "accuracy", "Accuracy vs PCA components"),
-        "f1_weighted": _metric_plot(
-            results_df, "f1_weighted", "F1 (weighted) vs PCA components"
-        ),
-        "precision_weighted": _metric_plot(
-            results_df, "precision_weighted", "Precision (weighted) vs PCA components"
-        ),
-        "recall_weighted": _metric_plot(
-            results_df, "recall_weighted", "Recall (weighted) vs PCA components"
-        ),
-    }
-
-    with col1:
-        if figs["accuracy"] is not None:
-            st.plotly_chart(figs["accuracy"], use_container_width=True)
-        else:
-            st.info("Accuracy plot not available.")
-
-        if figs["f1_weighted"] is not None:
-            st.plotly_chart(figs["f1_weighted"], use_container_width=True)
-        else:
-            st.info("F1 (weighted) plot not available.")
-
-    with col2:
-        if figs["precision_weighted"] is not None:
-            st.plotly_chart(figs["precision_weighted"], use_container_width=True)
-        else:
-            st.info("Precision (weighted) plot not available.")
-
-        if figs["recall_weighted"] is not None:
-            st.plotly_chart(figs["recall_weighted"], use_container_width=True)
-        else:
-            st.info("Recall (weighted) plot not available.")
+    metrics_section(results_df)
 
     st.success("Experiments complete.")
+
+
+def metrics_section(results_df: pd.DataFrame):
+
+    bacc_fig = _metric_plot(
+        results_df, "balanced_accuracy", "Balanced Accuracy vs no. Features"
+    )
+    f1m_fig = _metric_plot(results_df, "f1_macro", "Macro F1 vs no. Features")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if bacc_fig is not None:
+            st.plotly_chart(bacc_fig, use_container_width=True)
+    with col2:
+        if f1m_fig is not None:
+            st.plotly_chart(f1m_fig, use_container_width=True)
+    roc_fig = _metric_plot(
+        results_df, "roc_auc_ovr", "ROC AUC (OvR, Macro) vs no. Features"
+    )
+    if roc_fig is not None:
+        st.plotly_chart(roc_fig, use_container_width=True)
+
+
+def visualize_previous_results(feature_set_filter: str = None):
+    """
+    Visualize the single saved results file, optionally filtering by feature_set.
+
+    :param feature_set_filter: Filter results by the specified feature_set value.
+    :type feature_set_filter: str
+    """
+    load_dir = os.path.join(os.getcwd(), "data", "modelling_results")
+    fullpath = os.path.join(load_dir, "model_results.csv")
+
+    if os.path.isfile(fullpath):
+        try:
+            loaded = pd.read_csv(fullpath)
+            if feature_set_filter:
+                loaded = loaded[loaded["feature_set"] == feature_set_filter]
+                if loaded.empty:
+                    st.warning(
+                        f"No results found for feature_set '{feature_set_filter}'."
+                    )
+                    return
+            metrics_section(loaded)
+        except Exception as e:
+            st.error(f"Failed to load results: {e}")
+    else:
+        st.info("No saved results file found in data/modelling_results/")
+
+
+def best_model_testing():
+    # Use Random Forest on first 8 features from selected_scaled_X
+    X = st.session_state.get("selected_scaled_X")
+    y = st.session_state.get("y_series")
+
+    X = np.asarray(X)
+    y = np.asarray(y)
+    if X.shape[0] != y.shape[0]:
+        st.warning(
+            f"Sample size mismatch: X has {X.shape[0]} rows, y has {y.shape[0]} rows."
+        )
+        return
+
+    X8 = X[:, :8]
+    st.write("Training Random Forest with the first 8 selected features.")
+
+    rf = RandomForestClassifier(
+        n_estimators=300, random_state=0, n_jobs=-1, class_weight="balanced"
+    )
+
+    # Cross-validated evaluation (Stratified K-Fold), mirroring experiments
+    st.write("Running Stratified K-Fold CV for the chosen model (k=5)...")
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+    scoring = {
+        "balanced_accuracy": "balanced_accuracy",
+        "f1_macro": "f1_macro",
+        "roc_auc_ovr": "roc_auc_ovr",
+    }
+    try:
+        cv_res = cross_validate(rf, X8, y, cv=skf, scoring=scoring, n_jobs=-1)
+        mean_bacc = float(np.mean(cv_res.get("test_balanced_accuracy", [np.nan])))
+        mean_f1m = float(np.mean(cv_res.get("test_f1_macro", [np.nan])))
+        mean_roc = float(np.mean(cv_res.get("test_roc_auc_ovr", [np.nan])))
+        st.success(
+            f"CV Metrics (k=5) — Balanced Acc: {mean_bacc:.3f}, Macro F1: {mean_f1m:.3f}, ROC AUC (OvR): {mean_roc:.3f}"
+        )
+    except Exception as e:
+        st.warning(f"Cross-validated evaluation failed: {e}")
+
+    # Split into train/test for final evaluation
+    X_train, X_test, y_train, y_test = train_test_split(
+        X8, y, test_size=0.2, stratify=y, random_state=0
+    )
+
+    # Fit on training data
+    rf.fit(X_train, y_train)
+    st.success("Random Forest trained on training split with 8 features.")
+
+    # Save the final trained model automatically under models/
+    try:
+        models_dir = os.path.join(os.getcwd(), "models")
+        os.makedirs(models_dir, exist_ok=True)
+        model_path = os.path.join(models_dir, "best_rf_selected8.joblib")
+        joblib.dump({"model": rf, "feature_count": 8}, model_path)
+    except Exception as e:
+        st.warning(f"Failed to save model: {e}")
+
+    # Evaluate on test split
+    y_pred = rf.predict(X_test)
+    cm = confusion_matrix(y_test, y_pred, normalize="true")
+    # Build labels for axes
+    class_labels = list(np.unique(y))
+    # Create annotated heatmap similar to EDA correlation plots
+    z_text = (cm * 100).round(1).astype(str)
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=cm,
+            x=class_labels,
+            y=class_labels,
+            colorscale="Reds",
+            colorbar=dict(title="Recall"),
+            hovertemplate="True %{y}<br>Pred %{x}<br>Recall %{z:.2f}<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        title="Confusion Matrix (Per-Class Recall, Test Split)",
+        xaxis_title="Predicted",
+        yaxis_title="True",
+    )
+    # Add text annotations (percent recall) centered in each cell
+    for i, ylab in enumerate(class_labels):
+        for j, xlab in enumerate(class_labels):
+            fig.add_annotation(
+                x=xlab,
+                y=ylab,
+                text=f"{(cm[i, j]*100):.1f}%",
+                showarrow=False,
+                font=dict(color="black" if cm[i, j] < 0.6 else "white"),
+            )
+    fig.update_xaxes(side="top")
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Show classification report
+    # Show concise test metrics
+    report = classification_report(y_test, y_pred, output_dict=True)
+    macro_f1 = report.get("macro avg", {}).get("f1-score", None)
+    weighted_f1 = report.get("weighted avg", {}).get("f1-score", None)
+    st.write(
+        f"Test Macro F1: {macro_f1:.3f} | Test Weighted F1: {weighted_f1:.3f}"
+        if macro_f1 is not None and weighted_f1 is not None
+        else "Test metrics could not be computed."
+    )
+
+    # Store the trained model and feature slice count in session state
+    st.session_state["best_model_rf"] = rf
+    st.session_state["best_model_features"] = 8
