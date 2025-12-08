@@ -630,8 +630,8 @@ def best_model_testing():
             joblib.dump({"model": rf, "feature_count": 8}, model_path)
             try:
                 load_trained_model.clear()
-            except Exception:
-                pass
+            except Exception as e:
+                st.warning(f"Failed to clear model cache: {e}")
         except Exception as e:
             st.warning(f"Failed to save model: {e}")
 
