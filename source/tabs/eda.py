@@ -730,7 +730,7 @@ def encoding(df: pd.DataFrame, target_df: pd.DataFrame = None):
         target_df (pandas.DataFrame | None): Target values aligned to the dataset index.
 
     Returns:
-        None: Encoded artefacts are stored in session state and summaries are displayed.
+        None: Encoded artifacts are stored in session state and summaries are displayed.
     """
     st.subheader("Feature Selection")
 
