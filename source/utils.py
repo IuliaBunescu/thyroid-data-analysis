@@ -126,8 +126,17 @@ def resolve_parallel_jobs(default: int = 1) -> int:
 
 @st.cache_resource(show_spinner=False)
 def load_trained_model(model_path: str, *, force_single_thread: bool = True):
-    """Load a persisted model artifact and optionally cap its parallelism."""
+    """Load a persisted model artifact and optionally cap its parallelism.
 
+    Args:
+        model_path (str): Path to the persisted model file to load.
+        force_single_thread (bool, optional): If True, set the model's parallelism to a single thread. Defaults to True.
+
+    Returns:
+        tuple: (model, feature_count)
+            model: The loaded model object.
+            feature_count (int): The number of features the model was trained with.
+    """
     path = Path(model_path)
     if not path.is_file():
         raise FileNotFoundError(f"Model file not found at {path}")
