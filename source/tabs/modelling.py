@@ -14,7 +14,12 @@ from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
 
-from ..utils import _metric_plot, apply_standard_layout, resolve_parallel_jobs
+from ..utils import (
+    _metric_plot,
+    apply_standard_layout,
+    load_trained_model,
+    resolve_parallel_jobs,
+)
 
 
 def _ensure_live_modelling_access(feature_set: str) -> bool:
@@ -564,62 +569,106 @@ def best_model_testing():
     X8 = X[:, :8]
     st.write("Training Random Forest with the first 8 selected features.")
 
-    with st.expander("Admin: Unlock model saving", expanded=False):
-        save_allowed = _ensure_model_save_access()
+    with st.expander("Admin: Enable full retraining", expanded=False):
+        training_allowed = _ensure_model_save_access()
+        if training_allowed:
+            st.caption(
+                "Admin access granted: training will run and the model can be saved."
+            )
+        else:
+            st.caption(
+                "Admin token required to retrain the Random Forest. Showing existing model metrics if available."
+            )
 
-    parallel_jobs = resolve_parallel_jobs()
-    if parallel_jobs == 1:
-        st.caption(
-            "Parallel jobs limited to 1. Override via `PARALLEL_JOBS` secret or environment variable if needed."
+    if training_allowed:
+        parallel_jobs = resolve_parallel_jobs()
+        if parallel_jobs == 1:
+            st.caption(
+                "Parallel jobs limited to 1. Override via `PARALLEL_JOBS` secret or environment variable if needed."
+            )
+
+        rf = RandomForestClassifier(
+            n_estimators=300,
+            random_state=0,
+            n_jobs=parallel_jobs,
+            class_weight="balanced",
         )
 
-    rf = RandomForestClassifier(
-        n_estimators=300,
-        random_state=0,
-        n_jobs=parallel_jobs,
-        class_weight="balanced",
-    )
-
-    # Split into train/test for final evaluation
-    X_train, X_test, y_train, y_test = train_test_split(
-        X8, y, test_size=0.2, stratify=y, random_state=0
-    )
-
-    # Cross-validated evaluation (Stratified K-Fold) on training split
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
-    scoring = {
-        "balanced_accuracy": "balanced_accuracy",
-        "f1_macro": "f1_macro",
-        "roc_auc_ovr": "roc_auc_ovr",
-    }
-    try:
-        cv_res = cross_validate(
-            rf, X_train, y_train, cv=skf, scoring=scoring, n_jobs=parallel_jobs
+        # Split into train/test for final evaluation
+        X_train, X_test, y_train, y_test = train_test_split(
+            X8, y, test_size=0.2, stratify=y, random_state=0
         )
-        mean_bacc = float(np.mean(cv_res.get("test_balanced_accuracy", [np.nan])))
-        mean_f1m = float(np.mean(cv_res.get("test_f1_macro", [np.nan])))
-        mean_roc = float(np.mean(cv_res.get("test_roc_auc_ovr", [np.nan])))
-        st.success(
-            f"Train CV (k=5) — Balanced Acc: {mean_bacc:.3f}, Macro F1: {mean_f1m:.3f}, ROC AUC (OvR): {mean_roc:.3f}"
-        )
-    except Exception as e:
-        st.warning(f"Cross-validated evaluation on train split failed: {e}")
 
-    # Fit on training data
-    rf.fit(X_train, y_train)
+        # Cross-validated evaluation (Stratified K-Fold) on training split
+        skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+        scoring = {
+            "balanced_accuracy": "balanced_accuracy",
+            "f1_macro": "f1_macro",
+            "roc_auc_ovr": "roc_auc_ovr",
+        }
+        try:
+            cv_res = cross_validate(
+                rf, X_train, y_train, cv=skf, scoring=scoring, n_jobs=parallel_jobs
+            )
+            mean_bacc = float(np.mean(cv_res.get("test_balanced_accuracy", [np.nan])))
+            mean_f1m = float(np.mean(cv_res.get("test_f1_macro", [np.nan])))
+            mean_roc = float(np.mean(cv_res.get("test_roc_auc_ovr", [np.nan])))
+            st.success(
+                f"Train CV (k=5) — Balanced Acc: {mean_bacc:.3f}, Macro F1: {mean_f1m:.3f}, ROC AUC (OvR): {mean_roc:.3f}"
+            )
+        except Exception as e:
+            st.warning(f"Cross-validated evaluation on train split failed: {e}")
 
-    # Save the final trained model automatically under models/
-    if save_allowed:
+        # Fit on training data
+        rf.fit(X_train, y_train)
+
+        # Save the final trained model automatically under models/
         try:
             models_dir = os.path.join(os.getcwd(), "models")
             os.makedirs(models_dir, exist_ok=True)
             model_path = os.path.join(models_dir, "best_rf_selected8.joblib")
             joblib.dump({"model": rf, "feature_count": 8}, model_path)
+            try:
+                load_trained_model.clear()
+            except Exception as e:
+                st.warning(f"Failed to clear model cache: {e}")
         except Exception as e:
             st.warning(f"Failed to save model: {e}")
 
-    # Evaluate on test split
-    y_pred = rf.predict(X_test)
+        y_pred = rf.predict(X_test)
+    else:
+        # Attempt to load existing deployed model
+        model_path = os.path.join(os.getcwd(), "models", "best_rf_selected8.joblib")
+        try:
+            rf, feature_count = load_trained_model(model_path, force_single_thread=True)
+        except FileNotFoundError:
+            st.warning(
+                "Trained model unavailable. Admin access required to retrain and save the Random Forest."
+            )
+            return
+        except Exception as e:
+            st.error(f"Failed to load saved model: {e}")
+            return
+
+        if feature_count > X8.shape[1]:
+            st.warning(
+                "Saved model expects more features than available. Please retrain with admin access."
+            )
+            return
+        if feature_count < X8.shape[1]:
+            X8 = X[:, :feature_count]
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X8, y, test_size=0.2, stratify=y, random_state=0
+        )
+        try:
+            y_pred = rf.predict(X_test)
+        except Exception as e:
+            st.error(
+                f"Loaded model prediction failed: {e}. Please retrain with admin access."
+            )
+            return
+
     # Raw counts and normalized recall
     raw_cm = confusion_matrix(y_test, y_pred)
     cm = raw_cm.astype(float) / raw_cm.sum(axis=1, keepdims=True)
