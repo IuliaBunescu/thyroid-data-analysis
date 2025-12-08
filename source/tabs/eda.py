@@ -572,7 +572,7 @@ def numerical_pairwise_fragment(
 
 @st.fragment
 def pca_fragment(X: pd.DataFrame, y: pd.Series, n_components: int = None):
-    """Visualise PCA scree plots and biplots for the supplied dataset.
+    """Visualize PCA scree plots and biplots for the supplied dataset.
 
     Args:
         X (pandas.DataFrame): Numeric feature matrix aligned to the observations.
