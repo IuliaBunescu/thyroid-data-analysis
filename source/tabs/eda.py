@@ -17,7 +17,140 @@ from source.config import (
     DISCRETE_COLOR_PALETTE,
     TITLE_FONT_SIZE,
 )
-from source.utils import apply_standard_layout
+from source.utils import apply_standard_layout, resolve_parallel_jobs
+
+
+@st.cache_data(show_spinner=False)
+def _compute_imputation_summary(df: pd.DataFrame):
+    """Return imputed dataframe and diagnostics without touching Streamlit state."""
+
+    df_impute = df.copy()
+
+    if "TBG" in df_impute.columns:
+        missing_pct = float(df_impute["TBG"].isna().mean() * 100)
+    else:
+        missing_pct = 0.0
+    df_impute = df_impute.drop(columns=["TBG"], errors="ignore")
+
+    if "sex" in df_impute.columns:
+        mode_value = df_impute["sex"].mode().iloc[0]
+        df_impute["sex"] = df_impute["sex"].fillna(mode_value)
+    else:
+        mode_value = "Unknown"
+
+    if "condition_secondary" in df_impute.columns:
+        df_impute["condition_secondary"] = df_impute["condition_secondary"].fillna("-")
+
+    blood_features = [
+        col for col in ["TSH", "T3", "TT4", "T4U", "FTI"] if col in df_impute.columns
+    ]
+
+    original_corr = (
+        df_impute[blood_features].corr().fillna(0).values
+        if blood_features
+        else np.zeros((0, 0))
+    )
+
+    imputation_results = {}
+    correlation_changes = {}
+
+    if blood_features:
+        try:
+            knn_imputer = KNNImputer(n_neighbors=5)
+            blood_data_knn = knn_imputer.fit_transform(df_impute[blood_features])
+            knn_corr = (
+                pd.DataFrame(blood_data_knn, columns=blood_features).corr().values
+            )
+            correlation_changes["KNN"] = float(np.linalg.norm(knn_corr - original_corr))
+            imputation_results["KNN"] = blood_data_knn
+        except Exception:
+            correlation_changes["KNN"] = np.inf
+
+        try:
+            mice_imputer = IterativeImputer(random_state=42, max_iter=30, tol=1e-3)
+            blood_data_mice = mice_imputer.fit_transform(df_impute[blood_features])
+            mice_corr = (
+                pd.DataFrame(blood_data_mice, columns=blood_features).corr().values
+            )
+            correlation_changes["MICE"] = float(
+                np.linalg.norm(mice_corr - original_corr)
+            )
+            imputation_results["MICE"] = blood_data_mice
+        except Exception:
+            correlation_changes["MICE"] = np.inf
+
+        try:
+            blood_data_mean = df_impute[blood_features].copy()
+            for col in blood_features:
+                mean_val = df_impute[col].mean()
+                blood_data_mean[col] = df_impute[col].fillna(mean_val)
+            mean_corr = blood_data_mean.corr().values
+            correlation_changes["Mean"] = float(
+                np.linalg.norm(mean_corr - original_corr)
+            )
+            imputation_results["Mean"] = blood_data_mean.values
+        except Exception:
+            correlation_changes["Mean"] = np.inf
+
+        try:
+            blood_data_median = df_impute[blood_features].copy()
+            for col in blood_features:
+                median_val = df_impute[col].median()
+                blood_data_median[col] = df_impute[col].fillna(median_val)
+            median_corr = blood_data_median.corr().values
+            correlation_changes["Median"] = float(
+                np.linalg.norm(median_corr - original_corr)
+            )
+            imputation_results["Median"] = blood_data_median.values
+        except Exception:
+            correlation_changes["Median"] = np.inf
+    else:
+        correlation_changes["Mean"] = 0.0
+        imputation_results["Mean"] = df_impute[blood_features].values
+
+    valid_methods = {k: v for k, v in correlation_changes.items() if np.isfinite(v)}
+    if not valid_methods:
+        chosen_method = "Mean (fallback)"
+        correlation_changes[chosen_method] = "N/A (fallback)"
+        df_final = df_impute.copy()
+        for col in blood_features:
+            mean_val = df_impute[col].mean()
+            df_final[col] = df_impute[col].fillna(mean_val)
+    else:
+        chosen_method = min(valid_methods, key=valid_methods.get)
+        chosen_data = imputation_results[chosen_method]
+        df_final = df_impute.copy()
+        if blood_features:
+            df_final[blood_features] = chosen_data
+
+    return df_final, chosen_method, correlation_changes, missing_pct, mode_value
+
+
+@st.cache_data(show_spinner=False)
+def _compute_feature_selection(X: pd.DataFrame, y: pd.Series, n_jobs: int):
+    """Return feature importance artifacts for a stable dataset."""
+
+    model = RandomForestClassifier(
+        n_estimators=200,
+        random_state=0,
+        n_jobs=n_jobs,
+        class_weight="balanced",
+    )
+    model.fit(X.values, y.values)
+
+    feat_imp = pd.Series(model.feature_importances_, index=X.columns).sort_values(
+        ascending=False
+    )
+
+    try:
+        mi = mutual_info_classif(
+            X.values, y.values, discrete_features="auto", random_state=0
+        )
+        mi_ser = pd.Series(mi, index=X.columns).sort_values(ascending=False)
+    except Exception:
+        mi_ser = pd.Series(dtype=float)
+
+    return feat_imp, mi_ser
 
 
 def general_eda_structure(
@@ -352,104 +485,10 @@ def imputation(df: pd.DataFrame):
         pandas.DataFrame: Copy of the input data with imputed values applied.
     """
 
-    df_impute = df.copy()
+    df_final, chosen_method, correlation_changes, missing_pct, mode_value = (
+        _compute_imputation_summary(df)
+    )
 
-    # 1. Handle TBG column - drop if >90% missing
-    missing_pct = df_impute["TBG"].isna().mean() * 100
-    df_impute = df_impute.drop(columns=["TBG"])
-
-    # 2. Impute sex with mode
-    mode_sex = df_impute["sex"].mode()
-    mode_value = mode_sex.iloc[0]
-    df_impute["sex"] = df_impute["sex"].fillna(mode_value)
-
-    # 3. Impute condition_secondary with '-'
-    df_impute["condition_secondary"] = df_impute["condition_secondary"].fillna("-")
-
-    # 4. Handle numerical blood test features
-    blood_features = ["TSH", "T3", "TT4", "T4U", "FTI"]
-
-    # Calculate original correlation matrix for comparison
-    original_corr = df_impute[blood_features].corr().fillna(0).values
-
-    # Prepare results storage
-    imputation_results = {}
-    correlation_changes = {}
-
-    # Try KNN Imputation
-    try:
-        knn_imputer = KNNImputer(n_neighbors=5)
-        blood_data_knn = knn_imputer.fit_transform(df_impute[blood_features])
-        knn_corr = pd.DataFrame(blood_data_knn, columns=blood_features).corr().values
-        knn_change = np.linalg.norm(knn_corr - original_corr)
-
-        imputation_results["KNN"] = blood_data_knn
-        correlation_changes["KNN"] = knn_change
-    except Exception as e:
-        correlation_changes["KNN"] = np.inf
-
-    # Try Iterative (MICE) Imputation
-    try:
-        mice_imputer = IterativeImputer(random_state=42, max_iter=30, tol=1e-3)
-        blood_data_mice = mice_imputer.fit_transform(df_impute[blood_features])
-        mice_corr = pd.DataFrame(blood_data_mice, columns=blood_features).corr().values
-        mice_change = np.linalg.norm(mice_corr - original_corr)
-
-        imputation_results["MICE"] = blood_data_mice
-        correlation_changes["MICE"] = mice_change
-    except Exception as e:
-        correlation_changes["MICE"] = np.inf
-
-    # Try Mean Imputation
-    try:
-        blood_data_mean = df_impute[blood_features].copy()
-        for col in blood_features:
-            mean_val = df_impute[col].mean()
-            blood_data_mean[col] = df_impute[col].fillna(mean_val)
-
-        mean_corr = blood_data_mean.corr().values
-        mean_change = np.linalg.norm(mean_corr - original_corr)
-
-        imputation_results["Mean"] = blood_data_mean.values
-        correlation_changes["Mean"] = mean_change
-    except Exception as e:
-        correlation_changes["Mean"] = np.inf
-
-    # Try Median Imputation
-    try:
-        blood_data_median = df_impute[blood_features].copy()
-        for col in blood_features:
-            median_val = df_impute[col].median()
-            blood_data_median[col] = df_impute[col].fillna(median_val)
-
-        median_corr = blood_data_median.corr().values
-        median_change = np.linalg.norm(median_corr - original_corr)
-
-        imputation_results["Median"] = blood_data_median.values
-        correlation_changes["Median"] = median_change
-    except Exception as e:
-        correlation_changes["Median"] = np.inf
-
-    # Choose best method
-    valid_methods = {k: v for k, v in correlation_changes.items() if np.isfinite(v)}
-
-    if not valid_methods:
-        # Ultimate fallback - use mean imputation
-        df_final = df_impute.copy()
-        for col in blood_features:
-            mean_val = df_impute[col].mean()
-            df_final[col] = df_impute[col].fillna(mean_val)
-        chosen_method = "Mean (fallback)"
-        correlation_changes["Mean (fallback)"] = "N/A (ultimate fallback)"
-    else:
-        # Choose method with smallest correlation change
-        chosen_method = min(valid_methods, key=valid_methods.get)
-        chosen_data = imputation_results[chosen_method]
-
-        df_final = df_impute.copy()
-        df_final[blood_features] = chosen_data
-
-    # Store results in session state
     st.session_state["imputed_df"] = df_final
     st.session_state["imputation_method"] = chosen_method
     st.session_state["correlation_changes"] = correlation_changes
@@ -818,16 +857,18 @@ def feature_selection():
         "- Mutual information"
     )
 
-    try:
-        model = RandomForestClassifier(
-            n_estimators=200, random_state=0, n_jobs=-1, class_weight="balanced"
-        )
-        model.fit(X.values, y.values)
+    feat_imp = pd.Series(dtype=float)
+    mi_ser = pd.Series(dtype=float)
 
-        # Tree-based feature importances
-        feat_imp = pd.Series(model.feature_importances_, index=X.columns).sort_values(
-            ascending=False
-        )
+    try:
+        parallel_jobs = resolve_parallel_jobs()
+        if parallel_jobs == 1:
+            st.caption(
+                "Parallel jobs limited to 1. Override via `PARALLEL_JOBS` secret or environment variable if needed."
+            )
+
+        feat_imp, mi_ser = _compute_feature_selection(X, y, parallel_jobs)
+
         top_feat_imp = feat_imp.reset_index()
         top_feat_imp.columns = ["feature", "importance"]
         fig_imp = px.bar(
@@ -839,12 +880,7 @@ def feature_selection():
         apply_standard_layout(fig_imp)
         st.plotly_chart(fig_imp, width="stretch")
 
-        # Mutual information
-        try:
-            mi = mutual_info_classif(
-                X.values, y.values, discrete_features="auto", random_state=0
-            )
-            mi_ser = pd.Series(mi, index=X.columns).sort_values(ascending=False)
+        if not mi_ser.empty:
             top_mi = mi_ser.reset_index()
             top_mi.columns = ["feature", "mutual_info"]
             fig_mi = px.bar(
@@ -855,7 +891,7 @@ def feature_selection():
             )
             apply_standard_layout(fig_mi)
             st.plotly_chart(fig_mi, width="stretch")
-        except Exception:
+        else:
             st.info("Mutual information could not be computed in this environment.")
     except Exception as e:
         st.warning(f"Supervised importance computation failed: {e}")
@@ -864,8 +900,15 @@ def feature_selection():
         "Both methods indicate similar important features. The top 7 features will be selected for modeling."
     )
 
+    if feat_imp.empty:
+        st.warning(
+            "Feature importances unavailable; skipping feature selection storage."
+        )
+        return
+
     st.session_state["selected_scaled_X"] = X[feat_imp.index].copy()
-    st.session_state["selected_features"] = mi_ser.index[:7].tolist()
+    mi_reference = mi_ser if not mi_ser.empty else feat_imp
+    st.session_state["selected_features"] = mi_reference.index[:7].tolist()
 
     st.write(
         f"**Selected Features for Modeling:** {', '.join(st.session_state['selected_features'])}"

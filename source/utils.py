@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import plotly.express as px
@@ -97,3 +98,26 @@ def _metric_plot(df, metric, title):
         )
     except Exception:
         return None
+
+
+def resolve_parallel_jobs(default: int = 1) -> int:
+    """Resolve desired parallel worker count from Streamlit secrets or environment."""
+
+    candidates = []
+    try:
+        candidates.append(st.secrets.get("PARALLEL_JOBS"))
+    except Exception:
+        candidates.append(None)
+    candidates.append(os.environ.get("PARALLEL_JOBS"))
+
+    for value in candidates:
+        if value is None:
+            continue
+        try:
+            jobs = int(value)
+            if jobs != 0:
+                return max(1, jobs)
+        except (TypeError, ValueError):
+            continue
+
+    return max(1, default)

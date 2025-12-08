@@ -14,7 +14,7 @@ from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
 
-from ..utils import _metric_plot, apply_standard_layout
+from ..utils import _metric_plot, apply_standard_layout, resolve_parallel_jobs
 
 
 def _ensure_live_modelling_access(feature_set: str) -> bool:
@@ -49,6 +49,41 @@ def _ensure_live_modelling_access(feature_set: str) -> bool:
         return True
 
     st.error("Invalid admin token. Access denied.")
+    return False
+
+
+def _ensure_model_save_access() -> bool:
+    """Require admin token before persisting trained models to disk."""
+
+    unlock_key = "best_model_save_unlocked"
+    if st.session_state.get(unlock_key):
+        return True
+
+    admin_token = st.secrets.get("MODEL_SAVE_ADMIN_TOKEN") or st.secrets.get(
+        "LIVE_MODELLING_ADMIN_TOKEN"
+    )
+    if not admin_token:
+        st.info(
+            "Model saving is disabled for this deployment. Set `MODEL_SAVE_ADMIN_TOKEN` (or reuse `LIVE_MODELLING_ADMIN_TOKEN`) in Streamlit secrets to enable."
+        )
+        return False
+
+    with st.form("best_model_save_unlock"):
+        entered = st.text_input(
+            "Enter admin token to allow saving trained models", type="password"
+        )
+        submitted = st.form_submit_button("Unlock model saving")
+
+    if not submitted:
+        st.info("Model saving requires admin authorization.")
+        return False
+
+    if entered and hmac.compare_digest(entered, admin_token):
+        st.session_state[unlock_key] = True
+        st.success("Model saving unlocked for this session.")
+        return True
+
+    st.error("Invalid admin token. Model saving remains disabled.")
     return False
 
 
@@ -118,7 +153,16 @@ def general_modelling_structure():
     )
 
 
-def run_model_experiments(X, y, chosen, comp_values, skf, scoring, feature_set: str):
+def run_model_experiments(
+    X,
+    y,
+    chosen,
+    comp_values,
+    skf,
+    scoring,
+    feature_set: str,
+    n_jobs: int,
+):
     """Execute cross-validated experiments for the selected classifiers.
 
     Args:
@@ -129,6 +173,7 @@ def run_model_experiments(X, y, chosen, comp_values, skf, scoring, feature_set: 
         skf (sklearn.model_selection.StratifiedKFold): Cross-validation splitter.
         scoring (dict[str, str]): Mapping of metric names to sklearn scoring identifiers.
         feature_set (str): Identifier for the feature set currently under evaluation.
+        n_jobs (int): Number of parallel workers used in cross-validation.
 
     Returns:
         pandas.DataFrame: Aggregated cross-validation results for each classifier and component count.
@@ -143,7 +188,7 @@ def run_model_experiments(X, y, chosen, comp_values, skf, scoring, feature_set: 
             X_sub = X[:, :n_comp]
             try:
                 cv_res = cross_validate(
-                    clf, X_sub, y, cv=skf, scoring=scoring, n_jobs=-1
+                    clf, X_sub, y, cv=skf, scoring=scoring, n_jobs=n_jobs
                 )
                 results.append(
                     {
@@ -297,6 +342,12 @@ def live_modelling_fragment(
 
     start_components = max(1, min(start_components, max_components))
 
+    parallel_jobs = resolve_parallel_jobs()
+    if parallel_jobs == 1:
+        st.caption(
+            "Parallel jobs limited to 1. Override via `PARALLEL_JOBS` secret or environment variable if needed."
+        )
+
     # Use stable keys per feature_set to avoid duplicates across fragments
 
     # Base classifier constructors (limited to RF, XGB, SVC, LR)
@@ -310,7 +361,7 @@ def live_modelling_fragment(
             solver="lbfgs",
         ),
         "RandomForest": RandomForestClassifier(
-            n_estimators=300, random_state=0, n_jobs=-1
+            n_estimators=300, random_state=0, n_jobs=parallel_jobs
         ),
         "SVC": SVC(probability=True, kernel="rbf", random_state=0),
     }
@@ -325,7 +376,7 @@ def live_modelling_fragment(
         objective="multi:softprob",
         eval_metric="mlogloss",
         num_class=n_classes,
-        n_jobs=-1,
+        n_jobs=parallel_jobs,
         random_state=0,
     )
     # Build actual classifiers applying class_weight where available
@@ -408,7 +459,14 @@ def live_modelling_fragment(
 
     # run experiments via reusable helper and update progress bar per completed task
     results_df = run_model_experiments(
-        X, y, chosen, comp_values, skf, scoring, feature_set=feature_set
+        X,
+        y,
+        chosen,
+        comp_values,
+        skf,
+        scoring,
+        feature_set=feature_set,
+        n_jobs=parallel_jobs,
     )
 
     # Always save results to the single CSV file
@@ -506,8 +564,20 @@ def best_model_testing():
     X8 = X[:, :8]
     st.write("Training Random Forest with the first 8 selected features.")
 
+    with st.expander("Admin: Unlock model saving", expanded=False):
+        save_allowed = _ensure_model_save_access()
+
+    parallel_jobs = resolve_parallel_jobs()
+    if parallel_jobs == 1:
+        st.caption(
+            "Parallel jobs limited to 1. Override via `PARALLEL_JOBS` secret or environment variable if needed."
+        )
+
     rf = RandomForestClassifier(
-        n_estimators=300, random_state=0, n_jobs=-1, class_weight="balanced"
+        n_estimators=300,
+        random_state=0,
+        n_jobs=parallel_jobs,
+        class_weight="balanced",
     )
 
     # Split into train/test for final evaluation
@@ -524,7 +594,7 @@ def best_model_testing():
     }
     try:
         cv_res = cross_validate(
-            rf, X_train, y_train, cv=skf, scoring=scoring, n_jobs=-1
+            rf, X_train, y_train, cv=skf, scoring=scoring, n_jobs=parallel_jobs
         )
         mean_bacc = float(np.mean(cv_res.get("test_balanced_accuracy", [np.nan])))
         mean_f1m = float(np.mean(cv_res.get("test_f1_macro", [np.nan])))
@@ -539,13 +609,14 @@ def best_model_testing():
     rf.fit(X_train, y_train)
 
     # Save the final trained model automatically under models/
-    try:
-        models_dir = os.path.join(os.getcwd(), "models")
-        os.makedirs(models_dir, exist_ok=True)
-        model_path = os.path.join(models_dir, "best_rf_selected8.joblib")
-        joblib.dump({"model": rf, "feature_count": 8}, model_path)
-    except Exception as e:
-        st.warning(f"Failed to save model: {e}")
+    if save_allowed:
+        try:
+            models_dir = os.path.join(os.getcwd(), "models")
+            os.makedirs(models_dir, exist_ok=True)
+            model_path = os.path.join(models_dir, "best_rf_selected8.joblib")
+            joblib.dump({"model": rf, "feature_count": 8}, model_path)
+        except Exception as e:
+            st.warning(f"Failed to save model: {e}")
 
     # Evaluate on test split
     y_pred = rf.predict(X_test)
