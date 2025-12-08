@@ -20,8 +20,9 @@ def general_modelling_structure():
     """
     General structure for the Modelling tab
     """
+    st.subheader("Training and Evaluation")
+
     st.write(
-        " **Training and Evaluation** \n"
         "- We use Stratified K-Fold CV to preserve class proportions across folds. \n"
         "- For imbalance, a simple class_weight='balanced' option was used, which reweights classes at training time for models that accept class_weight.\n"
         "- Results are evaluated using the following metrics, all suitable for multiclass classification:\n"
@@ -60,8 +61,20 @@ def general_modelling_structure():
     )
 
     st.markdown("---")
-    st.subheader("Testing the Choosen Model")
+    st.subheader("Testing the Chosen Model")
     best_model_testing()
+    st.info(
+        "The model does a good job for classifying *Hypothyroid* and *General Health*, however it still struggles for the other classes. Mostly, the model confuses the other classes with the majority class **Normal**."
+    )
+
+    st.markdown("---")
+    st.subheader("Modelling Conclusions")
+    st.write(
+        "- Dimensionality reduction via PCA did not yield better performance; manually selected features based on EDA were more effective.\n"
+        "- Random Forest emerged as the best performing model among those tested, likely due to its ability to handle non-linear relationships and feature interactions.\n"
+        "- Further hyperparameter tuning and ensemble methods could be explored to enhance model performance.\n"
+        "- The selected model will be used for predictions in the next section."
+    )
 
 
 def run_model_experiments(X, y, chosen, comp_values, skf, scoring, feature_set: str):
@@ -389,10 +402,15 @@ def visualize_previous_results(feature_set_filter: str = None):
 
 def best_model_testing():
     # Use Random Forest on first 8 features from selected_scaled_X
-    X = st.session_state.get("selected_scaled_X")
+    X_df = st.session_state.get("selected_scaled_X")
     y = st.session_state.get("y_series")
-
-    X = np.asarray(X)
+    # Capture feature names for the first 8 selected features (for importances)
+    feature_names_8 = None
+    if isinstance(X_df, pd.DataFrame):
+        feature_names_8 = X_df.columns[:8].tolist()
+        X = X_df.values
+    else:
+        X = np.asarray(X_df)
     y = np.asarray(y)
     if X.shape[0] != y.shape[0]:
         st.warning(
@@ -407,8 +425,12 @@ def best_model_testing():
         n_estimators=300, random_state=0, n_jobs=-1, class_weight="balanced"
     )
 
-    # Cross-validated evaluation (Stratified K-Fold), mirroring experiments
-    st.write("Running Stratified K-Fold CV for the chosen model (k=5)...")
+    # Split into train/test for final evaluation
+    X_train, X_test, y_train, y_test = train_test_split(
+        X8, y, test_size=0.2, stratify=y, random_state=0
+    )
+
+    # Cross-validated evaluation (Stratified K-Fold) on training split
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
     scoring = {
         "balanced_accuracy": "balanced_accuracy",
@@ -416,24 +438,20 @@ def best_model_testing():
         "roc_auc_ovr": "roc_auc_ovr",
     }
     try:
-        cv_res = cross_validate(rf, X8, y, cv=skf, scoring=scoring, n_jobs=-1)
+        cv_res = cross_validate(
+            rf, X_train, y_train, cv=skf, scoring=scoring, n_jobs=-1
+        )
         mean_bacc = float(np.mean(cv_res.get("test_balanced_accuracy", [np.nan])))
         mean_f1m = float(np.mean(cv_res.get("test_f1_macro", [np.nan])))
         mean_roc = float(np.mean(cv_res.get("test_roc_auc_ovr", [np.nan])))
         st.success(
-            f"CV Metrics (k=5) — Balanced Acc: {mean_bacc:.3f}, Macro F1: {mean_f1m:.3f}, ROC AUC (OvR): {mean_roc:.3f}"
+            f"Train CV (k=5) — Balanced Acc: {mean_bacc:.3f}, Macro F1: {mean_f1m:.3f}, ROC AUC (OvR): {mean_roc:.3f}"
         )
     except Exception as e:
-        st.warning(f"Cross-validated evaluation failed: {e}")
-
-    # Split into train/test for final evaluation
-    X_train, X_test, y_train, y_test = train_test_split(
-        X8, y, test_size=0.2, stratify=y, random_state=0
-    )
+        st.warning(f"Cross-validated evaluation on train split failed: {e}")
 
     # Fit on training data
     rf.fit(X_train, y_train)
-    st.success("Random Forest trained on training split with 8 features.")
 
     # Save the final trained model automatically under models/
     try:
@@ -446,19 +464,40 @@ def best_model_testing():
 
     # Evaluate on test split
     y_pred = rf.predict(X_test)
-    cm = confusion_matrix(y_test, y_pred, normalize="true")
-    # Build labels for axes
-    class_labels = list(np.unique(y))
-    # Create annotated heatmap similar to EDA correlation plots
-    z_text = (cm * 100).round(1).astype(str)
+    # Raw counts and normalized recall
+    raw_cm = confusion_matrix(y_test, y_pred)
+    cm = raw_cm.astype(float) / raw_cm.sum(axis=1, keepdims=True)
+    cm = np.nan_to_num(cm)
+    # Per-true-class totals (denominator for recall)
+    row_totals = raw_cm.sum(axis=1)
+    present_ids = list(np.unique(y_test))
+
+    # Map ids -> labels from CSV, fallback to ids
+    try:
+        map_df = pd.read_csv("data/target_encoding.csv")
+        id_to_label = {
+            int(row["id"]): str(row["label"]) for _, row in map_df.iterrows()
+        }
+        tick_labels = [id_to_label.get(int(i), str(i)) for i in present_ids]
+    except Exception:
+        tick_labels = [str(i) for i in present_ids]
+
+    # Custom data: [count, total] per cell to display in hover
+    customdata = np.dstack(
+        [
+            raw_cm,
+            np.repeat(row_totals[:, None], raw_cm.shape[1], axis=1),
+        ]
+    )
     fig = go.Figure(
         data=go.Heatmap(
             z=cm,
-            x=class_labels,
-            y=class_labels,
+            x=tick_labels,
+            y=tick_labels,
             colorscale="Reds",
             colorbar=dict(title="Recall"),
-            hovertemplate="True %{y}<br>Pred %{x}<br>Recall %{z:.2f}<extra></extra>",
+            customdata=customdata,
+            hovertemplate="True %{y}<br>Pred %{x}<br>Recall %{z:.2f}<br>Count %{customdata[0]} / %{customdata[1]}<extra></extra>",
         )
     )
     fig.update_layout(
@@ -467,8 +506,8 @@ def best_model_testing():
         yaxis_title="True",
     )
     # Add text annotations (percent recall) centered in each cell
-    for i, ylab in enumerate(class_labels):
-        for j, xlab in enumerate(class_labels):
+    for i, ylab in enumerate(tick_labels):
+        for j, xlab in enumerate(tick_labels):
             fig.add_annotation(
                 x=xlab,
                 y=ylab,
@@ -478,6 +517,30 @@ def best_model_testing():
             )
     fig.update_xaxes(side="top")
     st.plotly_chart(fig, use_container_width=True)
+
+    # Feature importance plot for the final model
+    try:
+        importances = getattr(rf, "feature_importances_", None)
+        if importances is not None and feature_names_8 is not None:
+            imp_df = pd.DataFrame(
+                {
+                    "feature": feature_names_8,
+                    "importance": importances[: len(feature_names_8)],
+                }
+            ).sort_values("importance", ascending=False)
+            fig_imp = px.bar(
+                imp_df,
+                x="feature",
+                y="importance",
+                title="Final Model Feature Importances (Random Forest)",
+            )
+            st.plotly_chart(fig_imp, use_container_width=True)
+        else:
+            st.info(
+                "Feature importances are unavailable for this model or feature names are missing."
+            )
+    except Exception as e:
+        st.warning(f"Failed to render feature importances: {e}")
 
     # Show classification report
     # Show concise test metrics

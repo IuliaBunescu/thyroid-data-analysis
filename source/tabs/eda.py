@@ -1,3 +1,6 @@
+import os
+
+import joblib
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -772,6 +775,15 @@ def encoding(df: pd.DataFrame, target_df: pd.DataFrame = None):
     st.session_state["y_series"] = y_enc
     st.session_state["y_df"] = y
     st.session_state["X_encoded_df"] = X
+
+    # Save a simple CSV in the data folder for quick reference (no models involved)
+    classes_ = le.classes_.tolist()
+    try:
+
+        df_map = pd.DataFrame({"label": classes_, "id": list(range(len(classes_)))})
+        df_map.to_csv("data/target_encoding.csv", index=False)
+    except Exception as e:
+        st.warning(f"Failed to save target encoding CSV: {e}")
 
 
 def feature_selection():

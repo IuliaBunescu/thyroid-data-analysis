@@ -52,7 +52,7 @@ with tab2:
 with tab3:
     modelling.general_modelling_structure()
 with tab4:
-    prediction.general_prediction_section()
+    prediction.general_prediction_section(lab_references)
 with tab5:
     info.general_readme_structure()
 
