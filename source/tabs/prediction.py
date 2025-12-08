@@ -1,36 +1,11 @@
 from pathlib import Path
 
-import joblib
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from source.utils import apply_standard_layout
-
-
-@st.cache_resource(show_spinner=False)
-def _load_prediction_model(model_path: str):
-    """Load the trained model once per deployment and neutralize parallel workers."""
-
-    path = Path(model_path)
-    if not path.is_file():
-        raise FileNotFoundError(f"Model file not found at {path}")
-
-    saved = joblib.load(path)
-    model = saved.get("model")
-    if model is None:
-        raise ValueError("Saved object missing 'model'.")
-
-    feature_count = int(saved.get("feature_count", 8))
-
-    # Ensure predictions run single-threaded to avoid joblib worker issues on shared hosts
-    try:
-        model.set_params(n_jobs=1)
-    except (TypeError, ValueError, AttributeError):
-        pass
-
-    return model, feature_count
+from source.utils import apply_standard_layout, load_trained_model
 
 
 @st.fragment
@@ -52,7 +27,7 @@ def general_prediction_section(
         Path(__file__).resolve().parents[2] / "models" / "best_rf_selected8.joblib"
     )
     try:
-        rf, feature_count = _load_prediction_model(str(model_path))
+        rf, feature_count = load_trained_model(str(model_path))
     except FileNotFoundError:
         st.warning(
             "Final model not found. Please run the Modelling tab to train and save the model."

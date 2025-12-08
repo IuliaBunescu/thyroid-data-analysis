@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+import joblib
 import plotly.express as px
 import streamlit as st
 
@@ -121,3 +122,27 @@ def resolve_parallel_jobs(default: int = 1) -> int:
             continue
 
     return max(1, default)
+
+
+@st.cache_resource(show_spinner=False)
+def load_trained_model(model_path: str, *, force_single_thread: bool = True):
+    """Load a persisted model artifact and optionally cap its parallelism."""
+
+    path = Path(model_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Model file not found at {path}")
+
+    saved = joblib.load(path)
+    model = saved.get("model")
+    if model is None:
+        raise ValueError("Saved object missing 'model'.")
+
+    feature_count = int(saved.get("feature_count", 8))
+
+    if force_single_thread:
+        try:
+            model.set_params(n_jobs=1)
+        except (TypeError, ValueError, AttributeError):
+            pass
+
+    return model, feature_count

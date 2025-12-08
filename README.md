@@ -70,6 +70,23 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+## Secrets & Admin Controls
+Certain features are intentionally locked behind Streamlit secrets so the public app stays lightweight and secure.
+
+- `LIVE_MODELLING_ADMIN_TOKEN`: unlocks the "Live Modelling" expander so you can trigger fresh cross-validation runs.
+- `MODEL_SAVE_ADMIN_TOKEN`: permits retraining and persisting the best Random Forest in the Modelling tab (falls back to `LIVE_MODELLING_ADMIN_TOKEN` if omitted).
+- `PARALLEL_JOBS` *(optional)*: caps parallel workers for sklearn/xgboost jobs. Leave unset on Streamlit Cloud so tasks run single-threaded.
+
+Create `.streamlit/secrets.toml` locally (already git-ignored) or add the same keys via Streamlit Cloud ➜ App ➜ Settings ➜ Secrets:
+
+```toml
+LIVE_MODELLING_ADMIN_TOKEN = "replace-with-strong-token"
+MODEL_SAVE_ADMIN_TOKEN = "replace-with-strong-token"
+# PARALLEL_JOBS = "4"  # optional override for beefier machines
+```
+
+When the tokens are missing, the app gracefully disables the expensive actions and continues to use the last saved model for predictions.
+
 ## Repository Layout
 - `app.py` – Streamlit entrypoint configuring tabs and loading datasets.
 - `source/` – reusable modules: sidebar content, tab logic, configuration, and plotting helpers.
