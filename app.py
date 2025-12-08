@@ -1,13 +1,14 @@
 import pathlib
 
 import pandas as pd
+import streamlit as st
+
 import source.sidebar as sb
 import source.tabs.eda as eda
 import source.tabs.ida as ida
 import source.tabs.info as info
 import source.tabs.modelling as modelling
 import source.tabs.prediction as prediction
-import streamlit as st
 from source.utils import load_css
 
 # Page configuration
@@ -34,6 +35,7 @@ data = pd.read_csv("data/thyroid_data.csv", index_col="patient_id")
 lab_references = pd.read_csv("data/lab_reference_intervals.csv")
 condition_codes = pd.read_csv("data/condition_codes.csv")
 target_data = pd.read_csv("data/thyroid_data_target.csv", index_col="patient_id")
+target_encoding = pd.read_csv("data/target_encoding.csv")
 
 
 # Create tabs
@@ -48,7 +50,7 @@ with tab2:
 with tab3:
     modelling.general_modelling_structure()
 with tab4:
-    prediction.general_prediction_section(lab_references)
+    prediction.general_prediction_section(lab_references, target_encoding)
 with tab5:
     info.general_readme_structure()
 

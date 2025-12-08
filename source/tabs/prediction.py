@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import joblib
 import numpy as np
@@ -9,8 +9,34 @@ import streamlit as st
 from source.utils import apply_standard_layout
 
 
+@st.cache_resource(show_spinner=False)
+def _load_prediction_model(model_path: str):
+    """Load the trained model once per deployment and neutralize parallel workers."""
+
+    path = Path(model_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Model file not found at {path}")
+
+    saved = joblib.load(path)
+    model = saved.get("model")
+    if model is None:
+        raise ValueError("Saved object missing 'model'.")
+
+    feature_count = int(saved.get("feature_count", 8))
+
+    # Ensure predictions run single-threaded to avoid joblib worker issues on shared hosts
+    try:
+        model.set_params(n_jobs=1)
+    except (TypeError, ValueError, AttributeError):
+        pass
+
+    return model, feature_count
+
+
 @st.fragment
-def general_prediction_section(lab_references: pd.DataFrame = None):
+def general_prediction_section(
+    lab_references: pd.DataFrame = None, enc_df: pd.DataFrame = None
+):
     """Render the prediction workflow and display model outputs.
 
     Args:
@@ -22,16 +48,16 @@ def general_prediction_section(lab_references: pd.DataFrame = None):
     st.subheader("Predict Thyroid Condition")
 
     # Load trained final model
-    model_path = os.path.join(os.getcwd(), "models", "best_rf_selected8.joblib")
-    if not os.path.isfile(model_path):
+    model_path = (
+        Path(__file__).resolve().parents[2] / "models" / "best_rf_selected8.joblib"
+    )
+    try:
+        rf, feature_count = _load_prediction_model(str(model_path))
+    except FileNotFoundError:
         st.warning(
             "Final model not found. Please run the Modelling tab to train and save the model."
         )
         return
-    try:
-        saved = joblib.load(model_path)
-        rf = saved.get("model")
-        feature_count = int(saved.get("feature_count", 8))
     except Exception as e:
         st.error(f"Failed to load saved model: {e}")
         return
@@ -214,9 +240,7 @@ def general_prediction_section(lab_references: pd.DataFrame = None):
             # Map class id -> human-readable label using target_encoding.csv
             label = str(y_pred[0])
             try:
-                enc_df = pd.read_csv(
-                    os.path.join(os.getcwd(), "data", "target_encoding.csv")
-                )
+
                 id_to_label = {
                     int(r["id"]): str(r["label"]) for _, r in enc_df.iterrows()
                 }
@@ -230,9 +254,7 @@ def general_prediction_section(lab_references: pd.DataFrame = None):
                 st.subheader("Predicted Class Probabilities")
                 # Build probability display ordered by id_to_label mapping if available
                 try:
-                    enc_df = pd.read_csv(
-                        os.path.join(os.getcwd(), "data", "target_encoding.csv")
-                    )
+
                     id_to_label = {
                         int(r["id"]): str(r["label"]) for _, r in enc_df.iterrows()
                     }
