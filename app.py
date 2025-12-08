@@ -24,12 +24,8 @@ load_css(css_path)
 
 # Title
 st.title("Thyroid Data Analysis Dashboard")
-
-# Medical disclaimer at the top
 st.info(
-    "**This is a prototype application and not for clinical use.**\n\n"
-    "The data and analyses presented here are for educational purposes only. "
-    "They should not be used for medical diagnosis or treatment without consulting a qualified healthcare professional."
+    "Please refer to the sidebar for scope and navigation instructions and to the Info tab for background and citation information."
 )
 
 sb.sidebar_setup()

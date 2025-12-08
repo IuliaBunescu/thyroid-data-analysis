@@ -8,6 +8,14 @@ import streamlit as st
 
 @st.fragment
 def general_prediction_section(lab_references: pd.DataFrame = None):
+    """Render the prediction workflow and display model outputs.
+
+    Args:
+        lab_references (pandas.DataFrame | None): Reference ranges and labels used to annotate inputs.
+
+    Returns:
+        None: The Streamlit form and prediction results are rendered to the page.
+    """
     st.subheader("Predict Thyroid Condition")
 
     # Load trained final model

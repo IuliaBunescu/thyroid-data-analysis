@@ -1,6 +1,3 @@
-import os
-
-import joblib
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -26,10 +23,15 @@ from source.config import (
 def general_eda_structure(
     df: pd.DataFrame, target_df: pd.DataFrame, condition_codes: pd.DataFrame = None
 ):
-    """
-    General structure for the EDA tab
-    Inputs:
-    - df: DataFrame containing thyroid data
+    """Render the Exploratory Data Analysis tab layout and content.
+
+    Args:
+        df (pandas.DataFrame): Dataset containing thyroid features.
+        target_df (pandas.DataFrame): Encoded targets aligned to the dataset index.
+        condition_codes (pandas.DataFrame | None): Optional lookup table for condition codes.
+
+    Returns:
+        None: Streamlit sections for EDA are rendered sequentially.
     """
     st.header("Target Analysis")
     target_exploration(df, target_df, condition_codes)
@@ -58,11 +60,15 @@ def general_eda_structure(
 def target_exploration(
     df: pd.DataFrame, target_df: pd.DataFrame, condition_codes: pd.DataFrame = None
 ):
-    """
-    Explore the target variable in the dataset
-    Inputs:
-    - df: DataFrame containing thyroid data
-    - target_df: DataFrame containing target variable
+    """Explore the target distribution and related diagnostic insights.
+
+    Args:
+        df (pandas.DataFrame): Dataset containing original features and categories.
+        target_df (pandas.DataFrame): Table or series describing the derived target labels.
+        condition_codes (pandas.DataFrame | None): Optional mapping of condition codes to descriptions.
+
+    Returns:
+        None: Visualizations and narrative text are rendered in Streamlit.
     """
     st.subheader("Understanding Thyroid Primary Conditions")
     col1, col2 = st.columns([2, 3])
@@ -186,12 +192,15 @@ def target_exploration(
 def multivariate_analysis(
     df: pd.DataFrame, target_df: pd.DataFrame = None, target_col: str = "target"
 ):
-    """
-    Perform multivariate analysis on the dataset and render several plots in Streamlit.
-    - If target_df is provided (shares the same index), it will be joined into the plotting frame.
-    - Automatically picks numeric features (top by variance) for plotting.
-    - Creates: scatter matrix, pairwise scatter plots, violin distributions by target, and correlation heatmap.
-    - Allows the user to pick a grouping (color) column: the target OR any boolean / categorical column.
+    """Run interactive multivariate visualisations for numeric features.
+
+    Args:
+        df (pandas.DataFrame): Dataset whose features will be analysed pairwise.
+        target_df (pandas.DataFrame | None): Optional target information to join for colouring.
+        target_col (str): Column name containing the target labels once joined.
+
+    Returns:
+        None: Pairwise plots and selection controls are rendered in Streamlit.
     """
     # Only pairwise scatter plots: let user pick a single Y numeric feature to compare against others
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -244,9 +253,15 @@ def multivariate_analysis(
 def correlation_analysis(
     df: pd.DataFrame, target_df: pd.DataFrame = None, target_col: str = "target"
 ):
-    """
-    Perform correlation analysis on the dataset.
-    Allows grouping by target or any boolean/categorical column, and optionally viewing per-group correlations.
+    """Visualise correlation matrices overall and by subgroup.
+
+    Args:
+        df (pandas.DataFrame): Dataset used to compute correlation coefficients.
+        target_df (pandas.DataFrame | None): Optional target information for grouping.
+        target_col (str): Column name containing the target after merging.
+
+    Returns:
+        None: Correlation heatmaps and subgroup controls are rendered in Streamlit.
     """
     df_plot = df.copy()
     if target_df is not None:
@@ -314,6 +329,16 @@ def correlation_analysis(
 
 
 def _plot_corr(sub_df, title_suffix="", numeric_cols=None):
+    """Render a correlation heatmap for the provided subset of data.
+
+    Args:
+        sub_df (pandas.DataFrame): Subset of the dataset used to compute correlations.
+        title_suffix (str): Text appended to the plot title to clarify context.
+        numeric_cols (list[str] | None): Numeric columns to include in the correlation calculation.
+
+    Returns:
+        None: The correlation heatmap is displayed within Streamlit.
+    """
     corr = sub_df[numeric_cols].corr()
     fig = px.imshow(
         corr,
@@ -335,17 +360,13 @@ def _plot_corr(sub_df, title_suffix="", numeric_cols=None):
 
 
 def imputation(df: pd.DataFrame):
-    """
-    Imputation strategy for thyroid dataset:
-    - TBG: Drop due to >90% missing data and MNAR nature, but keep TBG_measured flag
-    - sex: Impute with most frequent category
-    - condition_secondary: Impute with '-' (no secondary condition)
-    - Numerical blood features (TSH, T3, TT4, T4U, FTI): Compare KNN vs Iterative (MICE)
-      vs Mean vs Median imputation and choose the method that least alters the correlation structure
+    """Impute missing values while monitoring correlation structure shifts.
 
-    Inputs:
-        - df:
+    Args:
+        df (pandas.DataFrame): Dataset requiring targeted imputation strategies.
 
+    Returns:
+        pandas.DataFrame: Copy of the input data with imputed values applied.
     """
 
     df_impute = df.copy()
@@ -494,6 +515,16 @@ def imputation(df: pd.DataFrame):
 def numerical_pairwise_fragment(
     df_plot: pd.DataFrame, color_arg: str = None, numeric_cols: list = None
 ):
+    """Render scatter comparisons between one selected target numeric and others.
+
+    Args:
+        df_plot (pandas.DataFrame): DataFrame used for plotting scatter comparisons.
+        color_arg (str | None): Column name used for colouring points, if any.
+        numeric_cols (list[str] | None): Numeric columns eligible for selection.
+
+    Returns:
+        None: Pairwise scatter plots are shown within Streamlit.
+    """
     selected_y = st.selectbox(
         "Select Y-axis numeric feature for comparison", numeric_cols, index=0
     )
@@ -541,11 +572,15 @@ def numerical_pairwise_fragment(
 
 @st.fragment
 def pca_fragment(X: pd.DataFrame, y: pd.Series, n_components: int = None):
-    """Interactive PCA fragment: shows an interactive scree plot and a biplot.
+    """Visualise PCA scree plots and biplots for the supplied dataset.
 
-    - `X`: DataFrame of numeric features (already aligned to samples)
-    - `y`: Series of labels (will be cast to str for coloring)
-    - `n_components`: number of PCA components to compute (defaults to min(10, n_features))
+    Args:
+        X (pandas.DataFrame): Numeric feature matrix aligned to the observations.
+        y (pandas.Series): Target series used for colouring in the biplot.
+        n_components (int | None): Number of components to compute; defaults to min(10, n_features).
+
+    Returns:
+        None: PCA outputs and supporting tables are rendered in Streamlit.
     """
     if n_components is None:
         n_components = min(10, X.shape[1])
@@ -688,11 +723,14 @@ def pca_fragment(X: pd.DataFrame, y: pd.Series, n_components: int = None):
 
 
 def encoding(df: pd.DataFrame, target_df: pd.DataFrame = None):
-    """
-    Simplified encoder:
-    - Booleans -> 0/1
-    - Categorical columns are reduced to at most 10 categories (top 9 + OTHER/MISSING),
-      then one-hot encoded.
+    """Encode features and targets for downstream modelling.
+
+    Args:
+        df (pandas.DataFrame): Prepared dataset to encode.
+        target_df (pandas.DataFrame | None): Target values aligned to the dataset index.
+
+    Returns:
+        None: Encoded artefacts are stored in session state and summaries are displayed.
     """
     st.subheader("Feature Selection")
 
@@ -787,6 +825,14 @@ def encoding(df: pd.DataFrame, target_df: pd.DataFrame = None):
 
 
 def feature_selection():
+    """Assess feature importance and persist selected feature subsets.
+
+    Args:
+        None: Relies on encoded data stored in Streamlit session state.
+
+    Returns:
+        None: Feature rankings and selections are displayed and saved.
+    """
     # Feature importance analysis (only if target is available)
     y = st.session_state.get("y_df", None)
     X = st.session_state.get("X_encoded_df", None)

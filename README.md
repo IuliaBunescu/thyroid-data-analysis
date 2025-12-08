@@ -1,84 +1,94 @@
-# Thyroid Analysis Dashboard
-This repository contains exploration, cleaning, visualization, and a Streamlit dashboard built around the UCI "Thyroid Disease" dataset (most extensive variant, made from multiple datasets). 
+# Thyroid Data Analysis Dashboard
 
-## Scope
-Understanding thyroid disease through data analysis, with a focus on:
-- Data cleaning and preprocessing techniques for clinical datasets with systematic missing data handling.
-- Advanced imputation strategies comparing KNN, MICE, Mean, and Median methods based on correlation preservation.
-- Exploratory data analysis (EDA) with comprehensive missing data visualization and analysis.
-- Interactive visualization of hormone levels against clinical reference ranges.
-- Feature selection and encoding optimized for medical data to avoid target leakage.
-- Predictive insights for individual patients based on lab results.
+Streamlit application and supporting notebooks that explore, model, and interact with the UCI **Thyroid Disease** dataset. The project blends careful data preparation with interactive visualisations and a patient-style prediction form aimed at understanding common thyroid conditions.
 
-## Dataset (source)
-- Name: Thyroid Disease
-- Source: UCI Machine Learning Repository (Quinlan, Ross, 1986)
-- Records: ~9k (original archive: 9172 records spanning 1984–1987)
-- Attributes: 29 fields including clinical flags (t/f), lab measurements (TSH, T3, TT4, T4U, FTI, TBG), demographics (age, sex), referral source, and raw diagnosis codes.
-- Missing values: Unknowns are encoded as "?" in the raw file and are parsed to NaN here.
-- Known issues observed: extreme age outliers (e.g., 65526), many measured-flag redundancy columns, class imbalance in diagnoses.
+## Overview
+- Cleaned, harmonised, and documented variant of the most extensive thyroid dataset published by Quinlan (1986).
+- Guided workflow that walks from Initial Data Analysis (IDA) through to live predictions.
+- Emphasis on transparency: every modelling choice is summarised in the UI and persisted artifacts are saved for reuse.
 
-## Key files/folders
-- app.py — Streamlit dashboard (entrypoint)
-- requirements.txt — Python dependencies for the app
-- LICENSE — project license (MIT)
-- data/ — packaged CSVs used by the app:
-  - thyroid_data.csv (cleaned main dataset)
-  - condition_codes.csv (mapping of diagnosis codes)
-  - lab_reference_intervals.csv (clinical reference ranges)
-  - thyroid_data_target.csv (simplified target categories)
-- source/ — app helper modules (config, sidebar, utils, tabs)
-- .streamlit/, assets/ — app config and static assets
+## Application Walkthrough
+### Initial Data Analysis (IDA)
+- Inspect overall dataset dimensions, medication usage rates, and highlight potential outliers.
+- Analyse missingness patterns with Plotly heatmaps and interactive sampling.
+- Compare imputation strategies (KNN, MICE, mean, median) while tracking correlation drift across thyroid hormones.
 
-## Data processing highlights
-- **Diagnosis parsing**: Raw diagnosis string split into primary and secondary codes, and patient_id extracted.
-- **Boolean flags**: Converted 't'/'f' to True/False for easier filtering.
-- **Age cleaning**: Rows with age > 100 are examined and removed by default as likely data entry errors.
-- **Advanced imputation strategy**:
-  - TBG: Dropped due to >90% missing data and MNAR nature, retained TBG_measured flag
-  - Sex: Imputed with most frequent category
-  - Secondary condition: Filled with '-' (no secondary condition)
-  - Numerical blood features (TSH, T3, TT4, T4U, FTI): Compared KNN vs Iterative (MICE) vs Mean vs Median imputation and selected method with smallest correlation structure change
-- **Missing data analysis**: Interactive visualizations including missing counts, percentages, missingness matrices, and correlation patterns between missing values.
-- **Target engineering**: Created simplified diagnostic categories from complex condition codes for balanced modeling.
-- **Feature selection**: Systematic removal of features causing target leakage (diagnosis codes, categories) and redundant measured flags.
-- **Feature encoding**: Boolean to binary conversion, categorical encoding while preserving medical interpretability.
-- **Feature importance analysis**: Random Forest, Permutation Importance, and Mutual Information rankings with PCA visualization.
+### Exploratory Data Analysis (EDA)
+- Review simplified target classes and diagnostic groupings with labelled bar charts.
+- Explore multivariate relationships via scatter, violin, and correlation plots with interactive grouping choices.
+- Rank features using tree-based importances and mutual information, then visualise PCA projections.
 
-## App features
-- **IDA Tab**: Interactive missing data analysis with Plotly visualizations, imputation comparison, and data quality assessment.
-- **EDA Tab**: Comprehensive exploratory analysis including target distribution, correlation heatmaps, feature importance, and PCA with medical context.
-- **Info Tab**: Dataset documentation, lab reference ranges, and methodology explanations.
+### Modelling
+- Run configurable experiments across Logistic Regression, Random Forest, SVC, and XGBoost.
+- Perform train/test split prior to 5-fold Stratified CV and capture balanced accuracy, macro F1, and ROC AUC.
+- Persist the best-performing Random Forest model (`models/best_rf_selected8.joblib`) and visualise a labelled confusion matrix with hover counts and feature importances.
+
+### Prediction
+- Collect patient-style inputs with unit-aware controls and normal reference ranges sourced from `lab_reference_intervals.csv`.
+- Encode boolean flags as Yes/No selectors and reassemble the feature vector expected by the saved model.
+- Present human-readable class labels alongside probability distributions for decision support (prototype only).
+
+### Info
+- Summarises workflow decisions, preprocessing highlights, and references with quick links back to the README and external resources.
+
+## Data Pipeline Highlights
+- **Diagnosis parsing:** Split raw diagnosis strings into primary/secondary codes and generate patient identifiers.
+- **Boolean harmonisation:** Convert `t/f` flags to boolean and later to numeric encodings for modelling.
+- **Outlier handling:** Flag improbable ages (>100) and note their removal during cleaning.
+- **Advanced imputation:** Evaluate KNN, Iterative (MICE), mean, and median imputers, choosing the method with the smallest correlation shift.
+- **Feature safety:** Remove leakage-prone columns (diagnosis codes, referral source, measured flags) before encoding.
+- **Session persistence:** Cache encoded data, selected features, and imputation choices across Streamlit tabs.
+
+## Modelling Summary
+- **Best model:** Random Forest with approximately eight manually selected features.
+- **Validation:** 5-fold Stratified CV on the training split; held-out test set for final evaluation.
+- **Indicative metrics:** Balanced Accuracy ≈ 0.75, Macro F1 ≈ 0.73, Macro ROC AUC ≈ 0.82.
+- **Explainability aids:** Feature importance bar charts and probability-calibrated confusion matrices with hover tooltips.
+
+## Prediction Experience
+- Input forms pre-populate with medians, provide lab ranges, and map boolean choices to numerical values automatically.
+- The returned class label is mapped via `data/target_encoding.csv`, ensuring human-readable output.
+- Probability bars help gauge model confidence; results are flagged as educational rather than diagnostic.
+
+## Technology Stack
+- **Python 3.11+**, **Streamlit**, **Plotly**, **pandas**, **scikit-learn**, **XGBoost**, **joblib**.
+- Styling via custom CSS (`assets/style.css`) and a bespoke Plotly colour palette (`source/config.py`).
+
+## Getting Started (Local)
+```bash
+# 1. Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Launch the Streamlit app
+streamlit run app.py
+```
+
+## Repository Layout
+- `app.py` – Streamlit entrypoint configuring tabs and loading datasets.
+- `source/` – reusable modules: sidebar content, tab logic, configuration, and plotting helpers.
+- `data/` – cleaned datasets, lab reference ranges, condition codes, modelling results, and saved encodings.
+- `models/` – persisted estimators (e.g., `best_rf_selected8.joblib`).
+- `screenshots/` – imagery for documentation (add fresh captures as the UI evolves).
+- `assets/` & `.streamlit/` – static styling and app configuration.
 
 ## Deployment
 - Live demo: [Streamlit Cloud](https://juliab-thyroid-data-analysis.streamlit.app/)
 
 ## Screenshots
-- IDA Tab:
-  ![IDA Tab](https://github.com/IuliaBunescu/thyroid-data-analysis/blob/main/screenshots/ida-tab.png)
-- EDA tab:
-  ![EDA Tab](https://github.com/IuliaBunescu/thyroid-data-analysis/blob/main/screenshots/eda-tab.png)
-- Info Tab:
-  ![Info Tab](./screenshots/info_tab.png)
+Update these paths with the latest captures (add images under `screenshots/`).
 
-## Quick start (local)
-1. Create and activate a virtual environment:
-   ```bash
-   python -m venv .venv
-   .venv\Scripts\activate  # Windows
-   source .venv/bin/activate  # macOS/Linux
-   ```
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Run the dashboard:
-   ```bash
-   streamlit run app.py
-   ```
+| Section | Preview |
+| --- | --- |
+| IDA Tab | ![IDA Tab](screenshots/ida-tab.png) |
+| EDA Tab | ![EDA Tab](screenshots/eda-tab.png) |
+| Modelling Tab | ![Modelling Tab](screenshots/modelling-tab.png) |
+| Prediction Tab | ![Prediction Tab](screenshots/prediction-tab.png) |
 
 ## Dataset Citation
-If you use the dataset in publications, cite the original data as:
 ```bibtex
 @misc{thyroid_disease_102,
   author       = {Quinlan, Ross},
@@ -90,4 +100,4 @@ If you use the dataset in publications, cite the original data as:
 ```
 
 ## License
-MIT — see LICENSE file for details.
+MIT — see `LICENSE` for details.

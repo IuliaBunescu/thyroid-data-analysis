@@ -17,8 +17,13 @@ from ..utils import _metric_plot
 
 
 def general_modelling_structure():
-    """
-    General structure for the Modelling tab
+    """Render the modelling tab structure and accompanying explanations.
+
+    Args:
+        None: This function does not accept any parameters.
+
+    Returns:
+        None: Streamlit components for modelling are rendered to the page.
     """
     st.subheader("Training and Evaluation")
 
@@ -69,7 +74,7 @@ def general_modelling_structure():
 
     st.markdown("---")
     st.subheader("Modelling Conclusions")
-    st.write(
+    st.info(
         "- Dimensionality reduction via PCA did not yield better performance; manually selected features based on EDA were more effective.\n"
         "- Random Forest emerged as the best performing model among those tested, likely due to its ability to handle non-linear relationships and feature interactions.\n"
         "- Further hyperparameter tuning and ensemble methods could be explored to enhance model performance.\n"
@@ -78,9 +83,19 @@ def general_modelling_structure():
 
 
 def run_model_experiments(X, y, chosen, comp_values, skf, scoring, feature_set: str):
-    """Run cross-validated experiments for a list of chosen (name, clf) pairs.
+    """Execute cross-validated experiments for the selected classifiers.
 
-    Returns a pandas DataFrame with one row per classifier x n_components.
+    Args:
+        X (numpy.ndarray): Feature matrix aligned with the target vector.
+        y (numpy.ndarray): Target labels corresponding to `X`.
+        chosen (list[tuple[str, object]]): Sequence of (name, estimator) pairs to evaluate.
+        comp_values (list[int]): Component counts or feature counts to iterate over.
+        skf (sklearn.model_selection.StratifiedKFold): Cross-validation splitter.
+        scoring (dict[str, str]): Mapping of metric names to sklearn scoring identifiers.
+        feature_set (str): Identifier for the feature set currently under evaluation.
+
+    Returns:
+        pandas.DataFrame: Aggregated cross-validation results for each classifier and component count.
     """
     results = []
     total_tasks = len(chosen) * len(comp_values)
@@ -129,11 +144,14 @@ def run_model_experiments(X, y, chosen, comp_values, skf, scoring, feature_set: 
 
 
 def save_results_df(results_df: pd.DataFrame, save_dir: str | None = None):
-    """Save modelling results to a single CSV, preserving prior feature sets.
+    """Persist modelling results to disk without overwriting other feature sets.
 
-    - Defaults to `data/modelling_results/model_results.csv`.
-    - If the file exists, merge by `classifier`,`feature_set`,`n_components` and update rows;
-      otherwise, append new rows so results from other feature sets remain intact.
+    Args:
+        results_df (pandas.DataFrame): Cross-validation results to be written.
+        save_dir (str | None): Optional directory override for the results file.
+
+    Returns:
+        str: Filesystem path to the saved CSV file.
     """
     if save_dir is None:
         save_dir = os.path.join(os.getcwd(), "data", "modelling_results")
@@ -164,6 +182,17 @@ def save_results_df(results_df: pd.DataFrame, save_dir: str | None = None):
 
 
 def modelling_section(subheader_title: str, X_name: str, y_name: str, feature_set: str):
+    """Render a modelling section with live experiments and stored results.
+
+    Args:
+        subheader_title (str): Title displayed above the section contents.
+        X_name (str): Session-state key storing the feature matrix.
+        y_name (str): Session-state key storing the encoded targets.
+        feature_set (str): Identifier describing the feature subset in use.
+
+    Returns:
+        None: Streamlit elements for modelling are rendered to the interface.
+    """
 
     st.subheader(subheader_title)
     with st.expander(
@@ -190,19 +219,18 @@ def live_modelling_fragment(
     X=None,
     y=None,
 ):
-    """
-    Live modelling fragment for running classification experiments using X and y live in the app.
+    """Allow users to run live modelling experiments from the Streamlit app.
 
-    :param X: Feature matrix (PCA-scaled).
-    :type X: np.ndarray
-    :param y: Target vector.
-    :type y: np.ndarray
-    :param start_components: The starting number of PCA components to use.
-    :type start_components: int
-    :param X_name: The session state key name for X if not provided.
-    :type X_name: str
-    :param y_name: The session state key name for y if not provided.
-    :type y_name: str
+    Args:
+        X_name (str): Session-state key holding the feature matrix if `X` is None.
+        y_name (str): Session-state key holding the target vector if `y` is None.
+        feature_set (str): Identifier describing the feature subset in use.
+        start_components (int, optional): Minimum number of features/components to evaluate.
+        X (numpy.ndarray | None, optional): Feature matrix provided directly, bypassing session state.
+        y (numpy.ndarray | None, optional): Target vector provided directly, bypassing session state.
+
+    Returns:
+        None: Results, controls, and visualizations are rendered in Streamlit.
     """
     if X is None:
         X = st.session_state.get(X_name)
@@ -353,6 +381,14 @@ def live_modelling_fragment(
 
 
 def metrics_section(results_df: pd.DataFrame):
+    """Visualize modelling metrics across feature counts.
+
+    Args:
+        results_df (pandas.DataFrame): Cross-validation results containing metric columns.
+
+    Returns:
+        None: Plotly charts are rendered in Streamlit.
+    """
 
     bacc_fig = _metric_plot(
         results_df, "balanced_accuracy", "Balanced Accuracy vs no. Features"
@@ -374,11 +410,13 @@ def metrics_section(results_df: pd.DataFrame):
 
 
 def visualize_previous_results(feature_set_filter: str = None):
-    """
-    Visualize the single saved results file, optionally filtering by feature_set.
+    """Display previously saved modelling results from disk.
 
-    :param feature_set_filter: Filter results by the specified feature_set value.
-    :type feature_set_filter: str
+    Args:
+        feature_set_filter (str | None): Filter condition to restrict results to a feature subset.
+
+    Returns:
+        None: Existing results are loaded and visualized in Streamlit.
     """
     load_dir = os.path.join(os.getcwd(), "data", "modelling_results")
     fullpath = os.path.join(load_dir, "model_results.csv")
@@ -401,6 +439,14 @@ def visualize_previous_results(feature_set_filter: str = None):
 
 
 def best_model_testing():
+    """Train, evaluate, and persist the selected Random Forest model.
+
+    Args:
+        None: This function reads data from Streamlit session state only.
+
+    Returns:
+        None: Evaluation metrics, plots, and saved artefacts are produced.
+    """
     # Use Random Forest on first 8 features from selected_scaled_X
     X_df = st.session_state.get("selected_scaled_X")
     y = st.session_state.get("y_series")
