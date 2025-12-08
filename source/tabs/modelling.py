@@ -1,3 +1,4 @@
+import hmac
 import os
 
 import joblib
@@ -14,6 +15,41 @@ from sklearn.svm import SVC
 from xgboost import XGBClassifier
 
 from ..utils import _metric_plot, apply_standard_layout
+
+
+def _ensure_live_modelling_access(feature_set: str) -> bool:
+    """Gate live modelling behind a shared secret to avoid accidental use in production."""
+
+    unlock_key = f"live_modelling_unlocked_{feature_set}"
+    if st.session_state.get(unlock_key):
+        return True
+
+    admin_token = st.secrets.get("LIVE_MODELLING_ADMIN_TOKEN")
+    if not admin_token:
+        st.info(
+            "Live experiments are disabled on this deployment. Set `LIVE_MODELLING_ADMIN_TOKEN` in secrets to unlock."
+        )
+        return False
+
+    with st.form(f"live_modelling_unlock_{feature_set}"):
+        entered = st.text_input(
+            "Enter admin token to unlock live experiments", type="password"
+        )
+        submitted = st.form_submit_button("Unlock")
+
+    if not submitted:
+        st.info(
+            "Due to computational constraints, live experiments are restricted to authorized users."
+        )
+        return False
+
+    if entered and hmac.compare_digest(entered, admin_token):
+        st.session_state[unlock_key] = True
+        st.success("Live modelling unlocked for this session.")
+        return True
+
+    st.error("Invalid admin token. Access denied.")
+    return False
 
 
 def general_modelling_structure():
@@ -35,7 +71,7 @@ def general_modelling_structure():
         "    - Macro F1: harmonic mean of precision and recall, averaged equally across classes.\n"
         "    - ROC AUC (OvR, Macro): area under the ROC curve using One-vs-Rest approach, averaged equally across classes.\n"
         "- Hyperparameters are kept mostly at default values, with some adjustments for training speed and convergence.\n"
-        "- Experiments are run live in the app, which may be time and resource intensive, therefore results are also saved to disk for later visualization.\n"
+        "- The experiments below allow live execution of modelling runs, which can be time and resource intensive, therefore they are gated behind an admin token."
     )
     st.markdown("---")
 
@@ -236,6 +272,9 @@ def live_modelling_fragment(
         X = st.session_state.get(X_name)
     if y is None:
         y = st.session_state.get(y_name)
+
+    if not _ensure_live_modelling_access(feature_set):
+        return
 
     if X is None or y is None:
         available = list(st.session_state.keys())
