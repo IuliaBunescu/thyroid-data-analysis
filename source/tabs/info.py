@@ -1,3 +1,4 @@
+import pandas as pd
 import streamlit as st
 
 
@@ -54,19 +55,40 @@ def general_readme_structure():
     st.write(citation)
 
     bibtex = """@misc{thyroid_disease_102,
-  author       = {Quinlan, Ross},
-  title        = {{Thyroid Disease}},
-  year         = {1986},
-  howpublished = {UCI Machine Learning Repository},
-  note         = {{DOI}: https://doi.org/10.24432/C5D010}
-}"""
+      author       = {Quinlan, Ross},
+      title        = {{Thyroid Disease}},
+      year         = {1986},
+      howpublished = {UCI Machine Learning Repository},
+      note         = {{DOI}: https://doi.org/10.24432/C5D010}
+    }"""
     st.code(bibtex, language="bibtex")
 
     st.header("Further Reading & Resources")
-    st.markdown(
-        """
-        - [Project README](https://github.com/IuliaBunescu/thyroid-data-analysis#readme) – documentation, setup instructions, and screenshots.
-        - [Lab Reference Intervals](https://en.wikipedia.org/wiki/Thyroid_function_tests) – external overview of thyroid function testing.
-        - [Streamlit Documentation](https://docs.streamlit.io/) – customise or deploy additional dashboards.
-        """
+    resources_df = pd.DataFrame(
+        [
+            {
+                "Resource": "Project README",
+                "Description": "Documentation, setup instructions, and screenshots.",
+                "Link": "https://github.com/IuliaBunescu/thyroid-data-analysis#readme",
+            },
+            {
+                "Resource": "Lab Reference Intervals",
+                "Description": "External overview of thyroid function testing.",
+                "Link": "https://en.wikipedia.org/wiki/Thyroid_function_tests",
+            },
+            {
+                "Resource": "Streamlit Documentation",
+                "Description": "Customise or deploy additional dashboards.",
+                "Link": "https://docs.streamlit.io/",
+            },
+        ]
+    )
+
+    st.dataframe(
+        resources_df,
+        column_config={
+            "Link": st.column_config.LinkColumn("Link", display_text="Open")
+        },
+        hide_index=True,
+        use_container_width=True,
     )

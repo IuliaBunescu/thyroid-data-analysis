@@ -2,13 +2,12 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from source.config import (
-    AXIS_TICK_FONT_SIZE,
-    AXIS_TITLE_FONT_SIZE,
     COLUMN_DESCRIPTIONS,
     CUSTOM_DISCRETE_2VAR_COLOR_PALETTE,
     PINK_RED_PALETTE,
     TITLE_FONT_SIZE,
 )
+from source.utils import apply_standard_layout
 
 
 def general_ida_structure(
@@ -198,36 +197,12 @@ def feature_explanation_frag(
                 labels={"x": feature},
             )
 
-            fig.update_layout(
-                margin=dict(l=0, r=0, t=30, b=0),
-                hoverlabel=dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
-                xaxis=dict(
-                    title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-                    tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-                ),
-                yaxis=dict(
-                    title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-                    tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-                ),
-                title=dict(font=dict(size=TITLE_FONT_SIZE)),
-            )
+            apply_standard_layout(fig)
         else:
             counts = series.astype(str).value_counts().reset_index()
             counts.columns = [feature, "count"]
             fig = px.bar(counts, x=feature, y="count", title=f"Counts of {feature}")
-            fig.update_layout(
-                margin=dict(l=0, r=0, t=30, b=0),
-                hoverlabel=dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
-                xaxis=dict(
-                    title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-                    tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-                ),
-                yaxis=dict(
-                    title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-                    tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-                ),
-                title=dict(font=dict(size=TITLE_FONT_SIZE)),
-            )
+            apply_standard_layout(fig)
 
         st.plotly_chart(fig, use_container_width=True)
 
@@ -279,20 +254,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
 
     fig.update_traces(marker_color=PINK_RED_PALETTE[1], textposition="outside")
 
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=30, b=0),
-        hoverlabel=dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
-        xaxis=dict(
-            title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-            tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-        ),
-        yaxis=dict(
-            title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-            tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-            automargin=True,
-        ),
-        title=dict(font=dict(size=TITLE_FONT_SIZE)),
-    )
+    apply_standard_layout(fig)
 
     st.plotly_chart(fig, use_container_width=True)
 
@@ -364,22 +326,15 @@ def missing_data_analysis_frag(df: pd.DataFrame):
     )
 
     # layout adjustments
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=30, b=0),
-        hoverlabel=dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
-        xaxis=dict(
-            title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-            tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-        ),
-        yaxis=dict(
-            title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-            tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-        ),
-        title=dict(
-            font=dict(size=TITLE_FONT_SIZE),
-            text=f"Missingness pattern ({sample_size} rows)",
-        ),
-        coloraxis_showscale=False,
+    apply_standard_layout(
+        fig,
+        extra_layout={
+            "title": dict(
+                font=dict(size=TITLE_FONT_SIZE),
+                text=f"Missingness pattern ({sample_size} rows)",
+            ),
+            "coloraxis_showscale": False,
+        },
     )
 
     # avoid overcrowding x tick labels for large samples
@@ -446,13 +401,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
                 "TBG_measured_str": "",
             },
         )
-        fig_miss.update_layout(
-            margin=dict(l=0, r=0, t=30, b=0),
-            hoverlabel=dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
-            xaxis=dict(tickfont=dict(size=AXIS_TICK_FONT_SIZE)),
-            yaxis=dict(title_font=dict(size=AXIS_TITLE_FONT_SIZE)),
-            title=dict(font=dict(size=TITLE_FONT_SIZE)),
-        )
+        apply_standard_layout(fig_miss)
         st.plotly_chart(fig_miss, use_container_width=True)
 
     st.markdown("### Explore distributions when TBG is measured")
@@ -523,20 +472,8 @@ def missing_data_analysis_frag(df: pd.DataFrame):
                     color_discrete_sequence=CUSTOM_DISCRETE_2VAR_COLOR_PALETTE[::-1],
                 )
                 fig.update_traces(marker=dict(line=dict(width=0)))
-                fig.update_layout(
-                    margin=dict(l=0, r=0, t=30, b=0),
-                    hoverlabel=dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
-                    xaxis=dict(
-                        title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-                        tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-                    ),
-                    yaxis=dict(
-                        title="Percent (%)",
-                        title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-                        tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-                    ),
-                    title=dict(font=dict(size=TITLE_FONT_SIZE)),
-                )
+                apply_standard_layout(fig)
+                fig.update_yaxes(title="Percent (%)")
                 st.plotly_chart(fig, use_container_width=True)
 
             # Categorical: compute percent distributions for each subset and plot together
@@ -587,19 +524,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
                     color_discrete_sequence=CUSTOM_DISCRETE_2VAR_COLOR_PALETTE[::-1],
                 )
                 fig.update_traces(texttemplate="%{y:.1f}%", textposition="outside")
-                fig.update_layout(
-                    margin=dict(l=0, r=0, t=30, b=0),
-                    hoverlabel=dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
-                    xaxis=dict(
-                        title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-                        tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-                    ),
-                    yaxis=dict(
-                        title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-                        tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-                    ),
-                    title=dict(font=dict(size=TITLE_FONT_SIZE)),
-                )
+                apply_standard_layout(fig)
                 st.plotly_chart(fig, use_container_width=True)
 
     st.info(
