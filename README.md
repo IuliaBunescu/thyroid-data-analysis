@@ -1,6 +1,6 @@
 # Thyroid Data Analysis Dashboard
 
-Streamlit application and supporting notebooks that explore, model, and interact with the UCI **Thyroid Disease** dataset. The project blends careful data preparation with interactive visualisations and a patient-style prediction form aimed at understanding common thyroid conditions.
+Streamlit application and supporting notebooks that explore, model, and interact with the UCI **Thyroid Disease** dataset. The project blends careful data preparation with interactive visualizations and a patient-style prediction form aimed at understanding common thyroid conditions.
 
 ## Overview
 - Cleaned, harmonised, and documented variant of the most extensive thyroid dataset published by Quinlan (1986).
