@@ -11,13 +11,12 @@ from sklearn.feature_selection import mutual_info_classif
 from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.preprocessing import StandardScaler
 from source.config import (
-    AXIS_TICK_FONT_SIZE,
-    AXIS_TITLE_FONT_SIZE,
     CONTINUOUS_COLOR_SCALE,
     CUSTOM_DISCRETE_2VAR_COLOR_PALETTE,
     DISCRETE_COLOR_PALETTE,
     TITLE_FONT_SIZE,
 )
+from source.utils import apply_standard_layout
 
 
 def general_eda_structure(
@@ -169,19 +168,7 @@ def target_exploration(
         title="Distribution of Target Variable",
         labels={"Count": "Number of Patients", "Target": "Thyroid Condition"},
     )
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=30, b=0),
-        hoverlabel=dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
-        xaxis=dict(
-            title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-            tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-        ),
-        yaxis=dict(
-            title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-            tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-        ),
-        title=dict(font=dict(size=TITLE_FONT_SIZE)),
-    )
+    apply_standard_layout(fig)
     st.plotly_chart(fig, width="stretch")
     st.markdown(
         "The target is visibly unbalanced, with most patients being labeled as *normal* and having no thyroid condition. To account for this, resampling techniques will be implemented when training the model. No changes will be made to the dataset to account for the imbalance at this step."
@@ -350,12 +337,7 @@ def _plot_corr(sub_df, title_suffix="", numeric_cols=None):
         title=f"Correlation matrix{title_suffix}",
         height=600,
     )
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=30, b=0),
-        xaxis=dict(tickfont=dict(size=AXIS_TICK_FONT_SIZE)),
-        yaxis=dict(tickfont=dict(size=AXIS_TICK_FONT_SIZE)),
-        title=dict(font=dict(size=TITLE_FONT_SIZE)),
-    )
+    apply_standard_layout(fig)
     st.plotly_chart(fig, width="stretch")
 
 
@@ -553,20 +535,7 @@ def numerical_pairwise_fragment(
                 marginal_x="violin",
                 marginal_y="violin",
             )
-            fig.update_layout(
-                margin=dict(l=0, r=0, t=30, b=0),
-                hoverlabel=dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
-                xaxis=dict(
-                    title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-                    tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-                ),
-                yaxis=dict(
-                    title_font=dict(size=AXIS_TITLE_FONT_SIZE),
-                    tickfont=dict(size=AXIS_TICK_FONT_SIZE),
-                ),
-                title=dict(font=dict(size=TITLE_FONT_SIZE)),
-                legend=dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
-            )
+            apply_standard_layout(fig)
             row_cols[col_idx].plotly_chart(fig, width="stretch")
 
 
@@ -864,7 +833,7 @@ def feature_selection():
             y="importance",
             title="Model Feature Importances (Tree-based)",
         )
-        fig_imp.update_layout(margin=dict(l=0, r=0, t=30, b=0))
+        apply_standard_layout(fig_imp)
         st.plotly_chart(fig_imp, width="stretch")
 
         # Mutual information
@@ -881,7 +850,7 @@ def feature_selection():
                 y="mutual_info",
                 title="Mutual Information (Top Features)",
             )
-            fig_mi.update_layout(margin=dict(l=0, r=0, t=30, b=0))
+            apply_standard_layout(fig_mi)
             st.plotly_chart(fig_mi, width="stretch")
         except Exception:
             st.info("Mutual information could not be computed in this environment.")

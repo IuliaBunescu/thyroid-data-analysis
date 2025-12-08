@@ -3,7 +3,9 @@ import os
 import joblib
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import streamlit as st
+from source.utils import apply_standard_layout
 
 
 @st.fragment
@@ -242,17 +244,16 @@ def general_prediction_section(lab_references: pd.DataFrame = None):
                 prob_df = pd.DataFrame({"class": labels, "probability": y_proba[0]})
                 prob_df = prob_df.sort_values("probability", ascending=False)
 
-                # Use Plotly for titled bar chart
-                import plotly.express as px
-
                 fig = px.bar(
                     prob_df,
                     x="class",
                     y="probability",
-                    title="Predicted Class Probabilities",
+                    title="",
                     labels={"class": "Class", "probability": "Probability"},
                 )
-                fig.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+                apply_standard_layout(
+                    fig, extra_layout={"margin": dict(l=0, r=0, t=40, b=0)}
+                )
                 st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.error(f"Prediction failed: {e}")

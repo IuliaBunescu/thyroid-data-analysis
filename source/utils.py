@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import plotly.express as px
 import streamlit as st
+from source.config import AXIS_TICK_FONT_SIZE, AXIS_TITLE_FONT_SIZE, TITLE_FONT_SIZE
 
 
 # Helper to load custom CSS
@@ -12,8 +15,58 @@ def load_css(file_path):
     Returns:
         None: The function writes the stylesheet to the Streamlit page.
     """
-    with open(file_path) as f:
+    path = Path(file_path)
+    if not path.exists():
+        st.warning(f"CSS file not found: {path}")
+        return
+
+    with path.open("r", encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+
+def apply_standard_layout(
+    fig,
+    *,
+    show_legend: bool | None = True,
+    extra_layout: dict | None = None,
+):
+    """Apply consistent styling to Plotly figures across the application.
+
+    Args:
+        fig (plotly.graph_objects.Figure): Figure to style.
+        show_legend (bool | None): Whether to show legend (None keeps current setting).
+        extra_layout (dict | None): Additional layout parameters applied after defaults.
+
+    Returns:
+        plotly.graph_objects.Figure: The updated figure (for chaining).
+    """
+
+    base_layout = {
+        "margin": dict(l=0, r=0, t=30, b=20),
+        "hoverlabel": dict(font=dict(size=AXIS_TICK_FONT_SIZE)),
+        "xaxis": dict(
+            title_font=dict(size=AXIS_TITLE_FONT_SIZE),
+            tickfont=dict(size=AXIS_TICK_FONT_SIZE),
+        ),
+        "yaxis": dict(
+            title_font=dict(size=AXIS_TITLE_FONT_SIZE),
+            tickfont=dict(size=AXIS_TICK_FONT_SIZE),
+            automargin=True,
+        ),
+        "title": dict(font=dict(size=TITLE_FONT_SIZE)),
+    }
+
+    if show_legend is True:
+        base_layout["legend"] = dict(font=dict(size=AXIS_TICK_FONT_SIZE))
+    elif show_legend is False:
+        base_layout["showlegend"] = False
+
+    fig.update_layout(**base_layout)
+
+    if extra_layout:
+        fig.update_layout(**extra_layout)
+
+    return fig
 
 
 # Helper to build a line plot for a metric
@@ -38,7 +91,8 @@ def _metric_plot(df, metric, title):
             title=title,
             labels={"n_components": "# Features", metric: title},
         )
-        fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
-        return fig
+        return apply_standard_layout(
+            fig, extra_layout={"margin": dict(l=20, r=20, t=40, b=20)}
+        )
     except Exception:
         return None

@@ -13,7 +13,7 @@ from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
 
-from ..utils import _metric_plot
+from ..utils import _metric_plot, apply_standard_layout
 
 
 def general_modelling_structure():
@@ -546,10 +546,14 @@ def best_model_testing():
             hovertemplate="True %{y}<br>Pred %{x}<br>Recall %{z:.2f}<br>Count %{customdata[0]} / %{customdata[1]}<extra></extra>",
         )
     )
-    fig.update_layout(
-        title="Confusion Matrix (Per-Class Recall, Test Split)",
-        xaxis_title="Predicted",
-        yaxis_title="True",
+    fig.update_layout(title="Confusion Matrix (Per-Class Recall, Test Split)")
+
+    apply_standard_layout(
+        fig,
+        extra_layout={
+            "xaxis_title": "Predicted",
+            "yaxis_title": "True",
+        },
     )
     # Add text annotations (percent recall) centered in each cell
     for i, ylab in enumerate(tick_labels):
@@ -561,7 +565,6 @@ def best_model_testing():
                 showarrow=False,
                 font=dict(color="black" if cm[i, j] < 0.6 else "white"),
             )
-    fig.update_xaxes(side="top")
     st.plotly_chart(fig, use_container_width=True)
 
     # Feature importance plot for the final model
@@ -580,6 +583,7 @@ def best_model_testing():
                 y="importance",
                 title="Final Model Feature Importances (Random Forest)",
             )
+            apply_standard_layout(fig_imp)
             st.plotly_chart(fig_imp, use_container_width=True)
         else:
             st.info(

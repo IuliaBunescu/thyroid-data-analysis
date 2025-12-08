@@ -41,8 +41,8 @@ pio.templates["thyroid_theme"] = pio.templates["plotly"].update(
 pio.templates.default = "thyroid_theme"
 
 TITLE_FONT_SIZE = 18
-AXIS_TITLE_FONT_SIZE = 14
-AXIS_TICK_FONT_SIZE = 12
+AXIS_TITLE_FONT_SIZE = 13
+AXIS_TICK_FONT_SIZE = 11
 
 
 COLUMN_DESCRIPTIONS = {
@@ -189,27 +189,19 @@ COLUMN_DESCRIPTIONS = {
         "link": "https://en.wikipedia.org/wiki/Referral",
     },
     "condition_primary": {
-        "short": "Primary diagnostic code.",
-        "long": "The main diagnostic category or group represented by the first character of the condition code (e.g., A = hypothyroidism).",
+        "short": "Primary diagnostic letter.",
+        "long": (
+            "The first character of the condition code captures the main diagnostic category. "
+            "For example, in 'AB' the letter 'A' reflects the underlying thyroid grouping (e.g. Hypothyroid, Hyperthyroid, Binding Protein)."
+        ),
         "link": "https://en.wikipedia.org/wiki/Diagnosis",
     },
     "condition_secondary": {
-        "short": "Secondary diagnostic subcode.",
-        "long": "A subcategory or finer diagnostic detail represented by the second character of the condition code, if available.",
+        "short": "Secondary diagnostic letter (if present).",
+        "long": (
+            "The optional second character in the condition code provides additional diagnostic nuance or related findings. "
+            "Continuing the previous example, 'B' in 'AB' denotes the supplementary diagnostic descriptor."
+        ),
         "link": "https://en.wikipedia.org/wiki/Diagnosis#Classification",
-    },
-    "condition_primary": {
-        "short": "Primary diagnosis letter.",
-        "long": (
-            "The first letter of the condition code, representing the main diagnostic category. "
-            "For example, in 'AB', 'A' is the primary diagnostic condition."
-        ),
-    },
-    "condition_secondary": {
-        "short": "Secondary diagnosis letter (if present).",
-        "long": (
-            "The second letter of the condition code, representing an additional diagnostic comment "
-            "or related condition. For example, in 'AB', 'B' is the secondary diagnostic condition."
-        ),
     },
 }
