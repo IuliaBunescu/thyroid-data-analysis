@@ -1,3 +1,9 @@
+/* ===== General padding ===== */
+.stMainBlockContainer {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+}
+
 /* ===== TABS ===== */
 .stTabs [data-baseweb="tab"] {
     background: #F8C6CC;  /* soft pink tab background */

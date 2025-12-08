@@ -40,9 +40,9 @@ pio.templates["thyroid_theme"] = pio.templates["plotly"].update(
 
 pio.templates.default = "thyroid_theme"
 
-TITLE_FONT_SIZE = 22
-AXIS_TITLE_FONT_SIZE = 18
-AXIS_TICK_FONT_SIZE = 16
+TITLE_FONT_SIZE = 18
+AXIS_TITLE_FONT_SIZE = 14
+AXIS_TICK_FONT_SIZE = 12
 
 
 COLUMN_DESCRIPTIONS = {

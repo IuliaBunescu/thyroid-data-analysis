@@ -1,16 +1,17 @@
+import os
+
+import joblib
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from plotly.subplots import make_subplots
 from sklearn.calibration import LabelEncoder
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.impute import IterativeImputer, KNNImputer
-from sklearn.inspection import permutation_importance
 from sklearn.preprocessing import StandardScaler
 from source.config import (
     AXIS_TICK_FONT_SIZE,
@@ -46,8 +47,12 @@ def general_eda_structure(
     df_imputed = imputation(df)
 
     st.markdown("---")
-    st.header("Encoding & Feature Selection")
-    feature_selection_and_encoding(df_imputed, target_df)
+    st.header("Encoding")
+    encoding(df_imputed, target_df)
+
+    st.markdown("---")
+    st.header("Feature Selection")
+    feature_selection()
 
 
 def target_exploration(
@@ -477,10 +482,10 @@ def imputation(df: pd.DataFrame):
     # Final summary
     st.write(
         f"**Imputation Summary:** \n"
-        "- **TBG**: Dropped due to MNAR nature and {missing_pct:.1f}% missing data. TBG_measured flag retained. \n"
+        f"- **TBG**: Dropped due to MNAR nature and {missing_pct:.1f}% missing data. TBG_measured flag retained. \n"
         f"- **Sex**: Filled missing values with most frequent category: '{mode_value}' \n"
-        "- **Secondary condition**: Filled with '-' (no secondary condition). Note: this feature was not used for target creation and will be dropped later. \n"
-        "- **Blood test features** (TSH, T3, TT4, T4U, FTI): Compared KNN vs Iterative (MICE) vs Mean vs Median imputation and selected **{chosen_method}** as it produced the smallest change in pairwise correlation structure."
+        f"- **Secondary condition**: Filled with '-' (no secondary condition). Note: this feature was not used for target creation and will be dropped later. \n"
+        f"- **Blood test features** (TSH, T3, TT4, T4U, FTI): Compared KNN vs Iterative (MICE) vs Mean vs Median imputation and selected **{chosen_method}** as it produced the smallest change in pairwise correlation structure."
     )
 
     return df_final
@@ -682,14 +687,12 @@ def pca_fragment(X: pd.DataFrame, y: pd.Series, n_components: int = None):
     st.dataframe(loadings_df)
 
 
-def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = None):
+def encoding(df: pd.DataFrame, target_df: pd.DataFrame = None):
     """
     Simplified encoder:
     - Booleans -> 0/1
     - Categorical columns are reduced to at most 10 categories (top 9 + OTHER/MISSING),
       then one-hot encoded.
-    After encoding show variance/PCA and (if target provided) simple supervised importances.
-    Encoded dataframe is stored in st.session_state['encoded_df'] and offered as CSV.
     """
     st.subheader("Feature Selection")
 
@@ -745,7 +748,6 @@ def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = N
         ).astype(float)
 
     # Save encoded df to session and preview
-    st.session_state["encoded_df"] = df_encoded
     st.subheader("Encoded Data (preview)")
     st.write(
         "**Encoding Summary:**\n"
@@ -757,99 +759,114 @@ def feature_selection_and_encoding(df: pd.DataFrame, target_df: pd.DataFrame = N
 
     st.dataframe(df_encoded.head(100))
 
+    # Align target with encoded features
+    y = target_series.reindex(df_encoded.index)
+    mask = y.notna()
+
+    X = df_encoded.loc[mask].copy()
+    y = y.loc[mask].copy()
+
+    # Encoding the target
+    y_ser = pd.Series(y).astype(str).str.strip()
+
+    # store target as plain numpy values under both keys for simplicity
+    le = LabelEncoder()
+    y_enc = le.fit_transform(y_ser)
+    st.session_state["y_series"] = y_enc
+    st.session_state["y_df"] = y
+    st.session_state["X_encoded_df"] = X
+
+    # Save a simple CSV in the data folder for quick reference (no models involved)
+    classes_ = le.classes_.tolist()
+    try:
+
+        df_map = pd.DataFrame({"label": classes_, "id": list(range(len(classes_)))})
+        df_map.to_csv("data/target_encoding.csv", index=False)
+    except Exception as e:
+        st.warning(f"Failed to save target encoding CSV: {e}")
+
+
+def feature_selection():
     # Feature importance analysis (only if target is available)
-    if target_series is not None:
-        st.subheader("Feature Importance Analysis")
+    y = st.session_state.get("y_df", None)
+    X = st.session_state.get("X_encoded_df", None)
+    st.subheader("Feature Importance Analysis")
 
-        # Align target with encoded features
-        y = target_series.reindex(df_encoded.index)
-        mask = y.notna()
+    st.write(
+        "The methods choesen for feature importance analysis are appropriate for data with underlying nonlinear relationships, as indicated by the multivariate analysis. The following methods will be used:\n"
+    )
+    st.write(
+        "- Tree-based feature importances using weighted Random Forests\n"
+        "- Mutual information"
+    )
 
-        X = df_encoded.loc[mask].copy()
-        y = y.loc[mask].copy()
+    try:
+        model = RandomForestClassifier(
+            n_estimators=200, random_state=0, n_jobs=-1, class_weight="balanced"
+        )
+        model.fit(X.values, y.values)
 
-        # Encoding the target
-        y_ser = pd.Series(y).astype(str).str.strip()
+        # Tree-based feature importances
+        feat_imp = pd.Series(model.feature_importances_, index=X.columns).sort_values(
+            ascending=False
+        )
+        top_feat_imp = feat_imp.reset_index()
+        top_feat_imp.columns = ["feature", "importance"]
+        fig_imp = px.bar(
+            top_feat_imp,
+            x="feature",
+            y="importance",
+            title="Model Feature Importances (Tree-based)",
+        )
+        fig_imp.update_layout(margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig_imp, width="stretch")
 
-        # store target as plain numpy values under both keys for simplicity
-        le = LabelEncoder()
-        y_enc = le.fit_transform(y_ser)
-        st.session_state["y_series"] = y_enc
-
-        if len(X) == 0:
-            st.warning("No valid samples with both features and target available.")
-            return
-
+        # Mutual information
         try:
-            model = RandomForestClassifier(n_estimators=200, random_state=0, n_jobs=-1)
-            model.fit(X.values, y.values)
-
-            # Tree-based feature importances
-            feat_imp = pd.Series(
-                model.feature_importances_, index=X.columns
-            ).sort_values(ascending=False)
-            top_feat_imp = feat_imp.head(20).reset_index()
-            top_feat_imp.columns = ["feature", "importance"]
-            fig_imp = px.bar(
-                top_feat_imp,
+            mi = mutual_info_classif(
+                X.values, y.values, discrete_features="auto", random_state=0
+            )
+            mi_ser = pd.Series(mi, index=X.columns).sort_values(ascending=False)
+            top_mi = mi_ser.reset_index()
+            top_mi.columns = ["feature", "mutual_info"]
+            fig_mi = px.bar(
+                top_mi,
                 x="feature",
-                y="importance",
-                title="Model Feature Importances (Tree-based)",
+                y="mutual_info",
+                title="Mutual Information (Top Features)",
             )
-            fig_imp.update_layout(margin=dict(l=0, r=0, t=30, b=0))
-            st.plotly_chart(fig_imp, width="stretch")
+            fig_mi.update_layout(margin=dict(l=0, r=0, t=30, b=0))
+            st.plotly_chart(fig_mi, width="stretch")
+        except Exception:
+            st.info("Mutual information could not be computed in this environment.")
+    except Exception as e:
+        st.warning(f"Supervised importance computation failed: {e}")
 
-            # Permutation importance
-            p_imp = permutation_importance(
-                model, X.values, y.values, n_repeats=3, random_state=0, n_jobs=1
-            )
-            pser = pd.Series(p_imp.importances_mean, index=X.columns).sort_values(
-                ascending=False
-            )
-            top_p = pser.head(20).reset_index()
-            top_p.columns = ["feature", "perm_importance"]
-            fig_perm = px.bar(
-                top_p,
-                x="feature",
-                y="perm_importance",
-                title="Permutation Importances (Mean)",
-            )
-            fig_perm.update_layout(margin=dict(l=0, r=0, t=30, b=0))
-            st.plotly_chart(fig_perm, width="stretch")
+    st.write(
+        "Both methods indicate similar important features. The top 7 features will be selected for modeling."
+    )
 
-            # Mutual information
-            try:
-                mi = mutual_info_classif(
-                    X.values, y.values, discrete_features="auto", random_state=0
-                )
-                mi_ser = pd.Series(mi, index=X.columns).sort_values(ascending=False)
-                top_mi = mi_ser.head(20).reset_index()
-                top_mi.columns = ["feature", "mutual_info"]
-                fig_mi = px.bar(
-                    top_mi,
-                    x="feature",
-                    y="mutual_info",
-                    title="Mutual Information (Top Features)",
-                )
-                fig_mi.update_layout(margin=dict(l=0, r=0, t=30, b=0))
-                st.plotly_chart(fig_mi, width="stretch")
-            except Exception:
-                st.info("Mutual information could not be computed in this environment.")
+    st.session_state["selected_scaled_X"] = X[feat_imp.index].copy()
+    st.session_state["selected_features"] = mi_ser.index[:7].tolist()
 
-        except Exception as e:
-            st.warning(f"Supervised importance computation failed: {e}")
+    st.write(
+        f"**Selected Features for Modeling:** {', '.join(st.session_state['selected_features'])}"
+    )
+    # PCA visualization
+    st.subheader("PCA Visualization")
 
-        # PCA visualization
-        st.subheader("PCA Visualization")
-        try:
-            pca_fragment(X, y, n_components=X.shape[1])
-            st.info(
-                "It can be observed that the classes are not very well separated in PCA space, indicating that more complex modeling techniques may be required to achieve good classification performance. Also, choosing how many components to retain will be non-trivial given the gradual variance decay. The modelling will therefore start simple, with just 3 principal components, and build up complexity from there."
-            )
-        except Exception as e:
-            st.warning(f"PCA visualization failed: {e}")
-    else:
-        st.info("No target variable provided - skipping feature importance analysis.")
+    st.info(
+        "Based on the Multivariate Analysis results, the relationships between features appear to be nonlinear. However, to get a first idea of how the data is structured in lower dimensions, PCA will be performed and visualized."
+    )
+    try:
+        pca_fragment(X, y, n_components=X.shape[1])
+        st.info(
+            "It can be observed that the classes are not very well separated in PCA space, nor is there a clear elbow point at which to cut off components. "
+            "This might be a consequence of the underlying nonlinearity. For investigating how PCA data behaves during modelling, the data will therefore be used further by starting simple, "
+            "with just 2 principal components, and build up complexity from there."
+        )
+    except Exception as e:
+        st.warning(f"PCA visualization failed: {e}")
 
     # csv = df_encoded.to_csv(index=False)
     # st.download_button(
