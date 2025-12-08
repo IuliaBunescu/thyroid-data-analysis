@@ -192,7 +192,7 @@ def target_exploration(
 def multivariate_analysis(
     df: pd.DataFrame, target_df: pd.DataFrame = None, target_col: str = "target"
 ):
-    """Run interactive multivariate visualisations for numeric features.
+    """Run interactive multivariate visualizations for numeric features.
 
     Args:
         df (pandas.DataFrame): Dataset whose features will be analysed pairwise.
