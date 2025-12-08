@@ -10,6 +10,7 @@ from sklearn.experimental import enable_iterative_imputer
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.preprocessing import StandardScaler
+
 from source.config import (
     CONTINUOUS_COLOR_SCALE,
     CUSTOM_DISCRETE_2VAR_COLOR_PALETTE,
@@ -609,7 +610,7 @@ def pca_fragment(X: pd.DataFrame, y: pd.Series, n_components: int = None):
     scree_fig.update_yaxes(title_text="Proportion of Variance Explained")
     scree_fig.update_layout(title_text="PCA Scree Plot")
 
-    st.plotly_chart(scree_fig, use_container_width=True)
+    st.plotly_chart(scree_fig, width="content")
 
     # Biplot: interactive
 
@@ -680,7 +681,7 @@ def pca_fragment(X: pd.DataFrame, y: pd.Series, n_components: int = None):
         height=600,
     )
 
-    st.plotly_chart(biplot_fig, use_container_width=True)
+    st.plotly_chart(biplot_fig, width="content")
     # show loadings table concisely under the biplot
     loadings = {
         "feature": feature_names,

@@ -398,15 +398,15 @@ def metrics_section(results_df: pd.DataFrame):
     col1, col2 = st.columns(2)
     with col1:
         if bacc_fig is not None:
-            st.plotly_chart(bacc_fig, use_container_width=True)
+            st.plotly_chart(bacc_fig, width="content")
     with col2:
         if f1m_fig is not None:
-            st.plotly_chart(f1m_fig, use_container_width=True)
+            st.plotly_chart(f1m_fig, width="content")
     roc_fig = _metric_plot(
         results_df, "roc_auc_ovr", "ROC AUC (OvR, Macro) vs no. Features"
     )
     if roc_fig is not None:
-        st.plotly_chart(roc_fig, use_container_width=True)
+        st.plotly_chart(roc_fig, width="content")
 
 
 def visualize_previous_results(feature_set_filter: str = None):
@@ -565,7 +565,7 @@ def best_model_testing():
                 showarrow=False,
                 font=dict(color="black" if cm[i, j] < 0.6 else "white"),
             )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="content")
 
     # Feature importance plot for the final model
     try:
@@ -584,7 +584,7 @@ def best_model_testing():
                 title="Final Model Feature Importances (Random Forest)",
             )
             apply_standard_layout(fig_imp)
-            st.plotly_chart(fig_imp, use_container_width=True)
+            st.plotly_chart(fig_imp, width="content")
         else:
             st.info(
                 "Feature importances are unavailable for this model or feature names are missing."
