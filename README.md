@@ -16,12 +16,12 @@ Streamlit application and supporting notebooks that explore, model, and interact
 ### Exploratory Data Analysis (EDA)
 - Review simplified target classes and diagnostic groupings with labelled bar charts.
 - Explore multivariate relationships via scatter, violin, and correlation plots with interactive grouping choices.
-- Rank features using tree-based importances and mutual information, then visualise PCA projections.
+- Rank features using tree-based importances and mutual information, then visualize PCA projections.
 
 ### Modelling
 - Run configurable experiments across Logistic Regression, Random Forest, SVC, and XGBoost.
 - Perform train/test split prior to 5-fold Stratified CV and capture balanced accuracy, macro F1, and ROC AUC.
-- Persist the best-performing Random Forest model (`models/best_rf_selected8.joblib`) and visualise a labelled confusion matrix with hover counts and feature importances.
+- Persist the best-performing Random Forest model (`models/best_rf_selected8.joblib`) and visualize a labelled confusion matrix with hover counts and feature importances.
 
 ### Prediction
 - Collect patient-style inputs with unit-aware controls and normal reference ranges sourced from `lab_reference_intervals.csv`.
