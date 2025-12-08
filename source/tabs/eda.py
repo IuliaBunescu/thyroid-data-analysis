@@ -253,7 +253,7 @@ def multivariate_analysis(
 def correlation_analysis(
     df: pd.DataFrame, target_df: pd.DataFrame = None, target_col: str = "target"
 ):
-    """Visualise correlation matrices overall and by subgroup.
+    """Visualize correlation matrices overall and by subgroup.
 
     Args:
         df (pandas.DataFrame): Dataset used to compute correlation coefficients.
