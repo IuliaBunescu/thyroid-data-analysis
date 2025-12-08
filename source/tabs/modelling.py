@@ -445,7 +445,7 @@ def best_model_testing():
         None: This function reads data from Streamlit session state only.
 
     Returns:
-        None: Evaluation metrics, plots, and saved artefacts are produced.
+        None: Evaluation metrics, plots, and saved artifacts are produced.
     """
     # Use Random Forest on first 8 features from selected_scaled_X
     X_df = st.session_state.get("selected_scaled_X")
