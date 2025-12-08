@@ -151,6 +151,8 @@ def load_trained_model(model_path: str, *, force_single_thread: bool = True):
     if force_single_thread:
         try:
             model.set_params(n_jobs=1)
+        # Some models do not support the 'n_jobs' parameter or do not implement set_params;
+        # safely ignore these exceptions as single-threading is a best-effort operation.
         except (TypeError, ValueError, AttributeError):
             pass
 
