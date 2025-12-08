@@ -565,7 +565,6 @@ def best_model_testing():
                 showarrow=False,
                 font=dict(color="black" if cm[i, j] < 0.6 else "white"),
             )
-    # fig.update_xaxes(side="top")
     st.plotly_chart(fig, use_container_width=True)
 
     # Feature importance plot for the final model
