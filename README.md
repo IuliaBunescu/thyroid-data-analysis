@@ -16,7 +16,7 @@ Streamlit application and supporting notebooks that explore, model, and interact
 ### Exploratory Data Analysis (EDA)
 - Review simplified target classes and diagnostic groupings with labelled bar charts.
 - Explore multivariate relationships via scatter, violin, and correlation plots with interactive grouping choices.
-- Rank features using tree-based importances and mutual information, then visualise PCA projections.
+- Rank features using tree-based importances and mutual information, then visualize PCA projections.
 
 ### Modelling
 - Run configurable experiments across Logistic Regression, Random Forest, SVC, and XGBoost.
