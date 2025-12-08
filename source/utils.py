@@ -2,6 +2,7 @@ from pathlib import Path
 
 import plotly.express as px
 import streamlit as st
+
 from source.config import AXIS_TICK_FONT_SIZE, AXIS_TITLE_FONT_SIZE, TITLE_FONT_SIZE
 
 

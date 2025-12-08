@@ -610,6 +610,7 @@ def pca_fragment(X: pd.DataFrame, y: pd.Series, n_components: int = None):
     scree_fig.update_yaxes(title_text="Proportion of Variance Explained")
     scree_fig.update_layout(title_text="PCA Scree Plot")
 
+    apply_standard_layout(scree_fig)
     st.plotly_chart(scree_fig, width="content")
 
     # Biplot: interactive
@@ -681,6 +682,7 @@ def pca_fragment(X: pd.DataFrame, y: pd.Series, n_components: int = None):
         height=600,
     )
 
+    apply_standard_layout(biplot_fig)
     st.plotly_chart(biplot_fig, width="content")
     # show loadings table concisely under the biplot
     loadings = {

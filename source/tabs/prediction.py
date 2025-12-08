@@ -251,7 +251,6 @@ def general_prediction_section(
             st.info(f"Predicted condition: **{label}**")
 
             if y_proba is not None:
-                st.subheader("Predicted Class Probabilities")
                 # Build probability display ordered by id_to_label mapping if available
                 try:
 
@@ -271,7 +270,7 @@ def general_prediction_section(
                     prob_df,
                     x="class",
                     y="probability",
-                    title="",
+                    title="Predicted Class Probabilities",
                     labels={"class": "Class", "probability": "Probability"},
                 )
                 apply_standard_layout(
