@@ -11,7 +11,7 @@ borderColor = "#F4A1A8"
 dataframeBorderColor = "#F9B5BA"
 dataframeHeaderBackgroundColor = "#F8C6CC"
 font = "monospace"
-baseFontSize=13
+baseFontSize = 12
 
 [theme.sidebar]
 backgroundColor = "#FFD6DA"      

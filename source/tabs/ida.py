@@ -14,17 +14,16 @@ from source.config import (
 def general_ida_structure(
     df: pd.DataFrame, lab_references: pd.DataFrame, condition_codes: pd.DataFrame
 ):
-    """'
-    General structure for the IDA tab
-    Inputs:
-    - df: pd.DataFrame
-        The main thyroid dataset
-    - lab_references: pd.DataFrame
-        The laboratory reference intervals dataset
-    - condition_codes: pd.DataFrame
-        The condition codes dataset
+    """Render the Initial Data Analysis (IDA) tab workflow.
+
+    Args:
+        df (pandas.DataFrame): Primary thyroid dataset indexed by patient.
+        lab_references (pandas.DataFrame): Laboratory reference ranges for key analytes.
+        condition_codes (pandas.DataFrame): Lookup table describing condition codes.
+
+    Returns:
+        None: Streamlit components for the IDA tab are rendered to the page.
     """
-    st.header("Initial Data Analysis (IDA)")
     general_metrics(df)
 
     st.markdown("---")
@@ -57,8 +56,13 @@ def general_ida_structure(
 
 
 def general_metrics(df: pd.DataFrame):
-    """
-    Show general metrics about the dataset
+    """Display high-level dataset metrics and medication usage rates.
+
+    Args:
+        df (pandas.DataFrame): Dataset containing patient records and features.
+
+    Returns:
+        None: Summary metrics are displayed in the Streamlit interface.
     """
     if df is None or df.empty:
         st.info("No data available")
@@ -106,8 +110,15 @@ def feature_explanation_frag(
     lab_references: pd.DataFrame = None,
     condition_codes: pd.DataFrame = None,
 ):
-    """
-    Provide explanation for a selected feature.
+    """Provide contextual information for a selected feature.
+
+    Args:
+        df (pandas.DataFrame): Dataset used to populate feature selections and plots.
+        lab_references (pandas.DataFrame | None): Reference intervals for laboratory tests.
+        condition_codes (pandas.DataFrame | None): Descriptions for condition code columns.
+
+    Returns:
+        None: Explanatory text, plots, and reference details are rendered in Streamlit.
     """
     if df is None or df.empty:
         st.info("No data available")
@@ -223,8 +234,13 @@ def feature_explanation_frag(
 
 @st.fragment
 def missing_data_analysis_frag(df: pd.DataFrame):
-    """
-    Analyze and visualize missing data pattern across rows and give option to sort by a feature.
+    """Analyze and visualize missing data patterns across features.
+
+    Args:
+        df (pandas.DataFrame): Dataset whose missingness patterns should be examined.
+
+    Returns:
+        None: Summary tables and visualizations are rendered in Streamlit.
     """
     if df is None or df.empty:
         st.info("No data available")
