@@ -29,7 +29,7 @@ Streamlit application and supporting notebooks that explore, model, and interact
 - Present human-readable class labels alongside probability distributions for decision support (prototype only).
 
 ### Info
-- Summarises workflow decisions, preprocessing highlights, and references with quick links back to the README and external resources.
+- Summarizes workflow decisions, preprocessing highlights, and references with quick links back to the README and external resources.
 
 ## Data Pipeline Highlights
 - **Diagnosis parsing:** Split raw diagnosis strings into primary/secondary codes and generate patient identifiers.
