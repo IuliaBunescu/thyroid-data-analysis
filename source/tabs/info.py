@@ -90,5 +90,5 @@ def general_readme_structure():
             "Link": st.column_config.LinkColumn("Link", display_text="Open")
         },
         hide_index=True,
-        use_container_width=True,
+        width="content",
     )

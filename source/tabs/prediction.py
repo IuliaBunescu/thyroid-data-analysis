@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+
 from source.utils import apply_standard_layout
 
 
@@ -254,6 +255,6 @@ def general_prediction_section(lab_references: pd.DataFrame = None):
                 apply_standard_layout(
                     fig, extra_layout={"margin": dict(l=0, r=0, t=40, b=0)}
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="content")
         except Exception as e:
             st.error(f"Prediction failed: {e}")

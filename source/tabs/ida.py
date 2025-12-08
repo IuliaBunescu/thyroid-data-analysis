@@ -1,6 +1,7 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+
 from source.config import (
     COLUMN_DESCRIPTIONS,
     CUSTOM_DISCRETE_2VAR_COLOR_PALETTE,
@@ -204,7 +205,7 @@ def feature_explanation_frag(
             fig = px.bar(counts, x=feature, y="count", title=f"Counts of {feature}")
             apply_standard_layout(fig)
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="content")
 
 
 @st.fragment
@@ -256,7 +257,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
 
     apply_standard_layout(fig)
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="content")
 
     cols_with_missing = missing_df.index.tolist()
     st.subheader("Missingness Pattern")
@@ -341,7 +342,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
     if sample_size > 80:
         fig.update_xaxes(showticklabels=False)
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="content")
     st.caption(
         "Blush cells = missing values; Magenta cells = present. Use sorting to observe how missingness aligns with a specific feature."
     )
@@ -402,7 +403,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
             },
         )
         apply_standard_layout(fig_miss)
-        st.plotly_chart(fig_miss, use_container_width=True)
+        st.plotly_chart(fig_miss, width="content")
 
     st.markdown("### Explore distributions when TBG is measured")
 
@@ -474,7 +475,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
                 fig.update_traces(marker=dict(line=dict(width=0)))
                 apply_standard_layout(fig)
                 fig.update_yaxes(title="Percent (%)")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="content")
 
             # Categorical: compute percent distributions for each subset and plot together
             else:
@@ -525,7 +526,7 @@ def missing_data_analysis_frag(df: pd.DataFrame):
                 )
                 fig.update_traces(texttemplate="%{y:.1f}%", textposition="outside")
                 apply_standard_layout(fig)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="content")
 
     st.info(
         "**Conclusions**: \n"
