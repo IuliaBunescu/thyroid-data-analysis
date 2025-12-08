@@ -3,9 +3,9 @@
 Streamlit application and supporting notebooks that explore, model, and interact with the UCI **Thyroid Disease** dataset. The project blends careful data preparation with interactive visualizations and a patient-style prediction form aimed at understanding common thyroid conditions.
 
 ## Overview
-- Cleaned, harmonised, and documented variant of the most extensive thyroid dataset published by Quinlan (1986).
+- Cleaned, harmonized, and documented variant of the most extensive thyroid dataset published by Quinlan (1986).
 - Guided workflow that walks from Initial Data Analysis (IDA) through to live predictions.
-- Emphasis on transparency: every modelling choice is summarised in the UI and persisted artifacts are saved for reuse.
+- Emphasis on transparency: every modelling choice is summarized in the UI and persisted artifacts are saved for reuse.
 
 ## Application Walkthrough
 ### Initial Data Analysis (IDA)
@@ -16,12 +16,12 @@ Streamlit application and supporting notebooks that explore, model, and interact
 ### Exploratory Data Analysis (EDA)
 - Review simplified target classes and diagnostic groupings with labelled bar charts.
 - Explore multivariate relationships via scatter, violin, and correlation plots with interactive grouping choices.
-- Rank features using tree-based importances and mutual information, then visualise PCA projections.
+- Rank features using tree-based importances and mutual information, then visualize PCA projections.
 
 ### Modelling
 - Run configurable experiments across Logistic Regression, Random Forest, SVC, and XGBoost.
 - Perform train/test split prior to 5-fold Stratified CV and capture balanced accuracy, macro F1, and ROC AUC.
-- Persist the best-performing Random Forest model (`models/best_rf_selected8.joblib`) and visualise a labelled confusion matrix with hover counts and feature importances.
+- Persist the best-performing Random Forest model (`models/best_rf_selected8.joblib`) and visualize a labelled confusion matrix with hover counts and feature importances.
 
 ### Prediction
 - Collect patient-style inputs with unit-aware controls and normal reference ranges sourced from `lab_reference_intervals.csv`.
@@ -33,7 +33,7 @@ Streamlit application and supporting notebooks that explore, model, and interact
 
 ## Data Pipeline Highlights
 - **Diagnosis parsing:** Split raw diagnosis strings into primary/secondary codes and generate patient identifiers.
-- **Boolean harmonisation:** Convert `t/f` flags to boolean and later to numeric encodings for modelling.
+- **Boolean harmonization:** Convert `t/f` flags to boolean and later to numeric encodings for modelling.
 - **Outlier handling:** Flag improbable ages (>100) and note their removal during cleaning.
 - **Advanced imputation:** Evaluate KNN, Iterative (MICE), mean, and median imputers, choosing the method with the smallest correlation shift.
 - **Feature safety:** Remove leakage-prone columns (diagnosis codes, referral source, measured flags) before encoding.
