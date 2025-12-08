@@ -234,7 +234,7 @@ def feature_explanation_frag(
 
 @st.fragment
 def missing_data_analysis_frag(df: pd.DataFrame):
-    """Analyse and visualise missing data patterns across features.
+    """Analyze and visualize missing data patterns across features.
 
     Args:
         df (pandas.DataFrame): Dataset whose missingness patterns should be examined.
